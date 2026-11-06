@@ -16,7 +16,7 @@ The browser is a simplified strategy viewer; it doesn't run the trained policies
 The research environment and documented limitations are open source. I'd love
 feedback on the learning experience and reproducible experiments.
 
-Demo (verify before posting): https://riversandrew36.github.io/figgie-rl/
+Demo: https://riversandrew36.github.io/figgie-rl/
 Source: https://github.com/riversandrew36/figgie-rl
 Official Figgie: https://www.figgie.com/
 

@@ -3,6 +3,9 @@
 An open **reinforcement-learning lab for Figgie**: explore trading strategies,
 train PPO agents, and study learning under hidden information.
 
+**[Open the live lab](https://riversandrew36.github.io/figgie-rl/)** ·
+[Train your first agent](docs/RL_QUICKSTART.md)
+
 - **Watch and learn:** the browser arena seats four scripted baselines, supports
   seeded scenarios and pause/step, and explains settlement and initial-hand beliefs.
 - **Train and evaluate:** the Python Gymnasium environment supports PPO, engineered
@@ -16,9 +19,8 @@ supports a player-quote market. Seeds and outcomes do not transfer between them.
 No validated claim of stronger PPO play in the newer player-quote market is made.
 
 Start with the [RL quickstart](docs/RL_QUICKSTART.md) for a small train/evaluate
-experiment, or run `figgie-arena` locally after installation below. GitHub Pages
-publication is configured; see [deployment instructions](docs/DEPLOYMENT.md) for
-setup and the expected address (not yet verified live).
+experiment, or run `figgie-arena` locally after installation below. The public demo is hosted on GitHub Pages; see
+[deployment instructions](docs/DEPLOYMENT.md) for setup, checks, and rollback.
 
 Independent educational implementation of [Figgie, created by Jane Street](https://www.figgie.com/).
 Not affiliated with or endorsed by Jane Street. [Watch Jane Street's gameplay video](https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s).

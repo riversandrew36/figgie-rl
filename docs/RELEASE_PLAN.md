@@ -35,3 +35,10 @@ configuration; local implementation can proceed independently.
 Guided lessons, deeper bot tutorials, browser inference, and human play follow
 feedback. No new substantial training run, claim of stronger AI, multiplayer,
 analytics, custom domain, or paid service is part of this release.
+
+## Release outcome — November 6, 2026
+
+The public repository and GitHub Pages demo are live. The implementation and
+release checks passed, including a clean-install small PPO workflow and fresh
+public desktop/mobile sessions. See [deployment verification](DEPLOYMENT.md).
+Launch posts and outreach remain manual.

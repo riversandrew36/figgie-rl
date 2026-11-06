@@ -14,9 +14,14 @@ server, framework build, account system, or paid service runs in production.
 5. Wait for all validation jobs and deployment to pass, then verify the URL printed
    by the deployment job in a fresh browser session.
 
-Expected address: `https://riversandrew36.github.io/figgie-rl/`. Treat this as a planned
-address until the workflow and public browser checks confirm it is live. Set the
-repository homepage to this URL only after verification.
+Live address: https://riversandrew36.github.io/figgie-rl/.
+
+Verified November 6, 2026 after [release workflow 42252561384](https://github.com/riversandrew36/figgie-rl/actions/runs/42252561384)
+passed. Fresh desktop and mobile browser sessions completed real timed rounds,
+viewed explanations, downloaded logs, and shared scenarios without browser errors.
+All 82 Python tests, four deterministic JavaScript checks, six browser tests, and
+the clean-wheel install passed. The 4,096-step local RL workflow and 50-episode
+exploratory benchmark also completed; no reserved final tests were run.
 
 ## Pipeline and local preview
 
