@@ -1,0 +1,12 @@
+{
+  "name": "figgie-learning-lab-checks",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/browser/arena.test.cjs",
+    "test:browser": "playwright test",
+    "build:pages": "python3 scripts/build_pages.py"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

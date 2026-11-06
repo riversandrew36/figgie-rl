@@ -1,0 +1,36 @@
+run_name: ppo_smoke
+seed: 7
+
+env:
+  max_steps: 80
+  num_players: 4
+  tick_size: 1.0
+  base_spread: 2.0
+  drift_std: 0.12
+  external_fill_prob: 0.8
+  external_order_flow_prob: 0.35
+  goal_card_value: 10.0
+  goal_majority_bonus: 40.0
+  starting_cash: 350.0
+  ante: 50.0
+  pot_conserving_settlement: true
+  quote_ttl_steps: 8
+  include_belief_features: false
+
+train:
+  total_timesteps: 20000
+  n_envs: 4
+  learning_rate: 0.0003
+  n_steps: 256
+  batch_size: 256
+  gamma: 0.995
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  eval_freq: 2000
+  n_eval_episodes: 10
+  deterministic_eval: true
+
+paths:
+  root_artifacts: artifacts

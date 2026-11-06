@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package and dev tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: python -m pytest -q
+
+  package:
+    name: wheel install smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m build --wheel --outdir dist
+      - name: Check wheel contents
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")
+          if len(wheel) != 1:
+              raise SystemExit(f"expected one wheel, found {wheel}")
+          names = set(zipfile.ZipFile(wheel[0]).namelist())
+          required = [
+              "figgie_play.py",
+              "figgie_rl/arena/figgie_play.html",
+              "figgie_rl/arena/figgie_arena.css",
+              "figgie_rl/arena/figgie_arena.js",
+          ]
+          missing = [name for name in required if name not in names]
+          if missing:
+              raise SystemExit(f"wheel missing {missing}")
+          PY
+      - name: Install wheel in a clean environment
+        run: |
+          python -m venv /tmp/figgie-smoke
+          /tmp/figgie-smoke/bin/pip install --upgrade pip
+          /tmp/figgie-smoke/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+          /tmp/figgie-smoke/bin/pip install dist/*.whl
+      - name: Smoke-test installed CLIs and arena assets
+        working-directory: /tmp
+        run: |
+          set -euo pipefail
+          BIN=/tmp/figgie-smoke/bin
+          "$BIN/figgie-train" --help >/dev/null
+          "$BIN/figgie-eval" --help >/dev/null
+          "$BIN/figgie-self-play" --help >/dev/null
+          "$BIN/figgie-demo" --help >/dev/null
+          "$BIN/figgie-arena" --help >/dev/null
+          "$BIN/figgie-demo" --seed 7 --steps 1 >/dev/null
+          "$BIN/python" - <<'PY'
+          import figgie_play
+
+          root = figgie_play.arena_directory()
+          location = str(root)
+          if "site-packages" not in location and "dist-packages" not in location:
+              raise SystemExit(f"arena directory is not from the installed package: {root}")
+          for name in figgie_play.ARENA_ASSETS:
+              path = root / name
+              if not path.is_file() or path.stat().st_size == 0:
+                  raise SystemExit(f"missing arena asset: {path}")
+          html = (root / "figgie_play.html").read_text(encoding="utf-8")
+          if "figgie_arena.css" not in html or "figgie_arena.js" not in html:
+              raise SystemExit("arena html does not reference packaged css/js")
+          PY
+          "$BIN/figgie-arena" --host 127.0.0.1 --port 8765 >/tmp/arena-server.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+          ok=0
+          for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+            if curl -fsS "http://127.0.0.1:8765/figgie_play.html" >/tmp/arena.html; then
+              ok=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$ok" != 1 ]; then
+            echo "arena server did not become ready" >&2
+            cat /tmp/arena-server.log >&2 || true
+            exit 1
+          fi
+          curl -fsS "http://127.0.0.1:8765/figgie_arena.css" >/tmp/arena.css
+          curl -fsS "http://127.0.0.1:8765/figgie_arena.js" >/tmp/arena.js
+          grep -q "figgie_arena.css" /tmp/arena.html
+          grep -q "figgie_arena.js" /tmp/arena.html
+          test -s /tmp/arena.css
+          test -s /tmp/arena.js
+
+  browser:
+    name: browser and seeded simulation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: test-results/

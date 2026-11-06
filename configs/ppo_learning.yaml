@@ -1,0 +1,41 @@
+# Small workflow demonstration, not a competitive or publication-quality run.
+run_name: ppo_learning
+seed: 17
+
+env:
+  market_mode: endogenous
+  max_steps: 80
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  goal_card_value: 10.0
+  pot_conserving_settlement: true
+  quote_ttl_steps: 8
+  include_belief_features: true
+  include_goal_belief_features: true
+  opponent_difficulties: [hunter, banker, detective]
+
+train:
+  total_timesteps: 4096
+  n_envs: 2
+  n_steps: 128
+  batch_size: 128
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  eval_freq: 2048
+  n_eval_episodes: 20
+  deterministic_eval: true
+  validation_seed: 600000
+
+# Exploratory evaluation uses 610000–610049 in the quickstart.
+# This independent range is reserved for a frozen experiment's final test.
+evaluation:
+  test_seed: 620000
+  test_episodes: 200
+
+paths:
+  root_artifacts: artifacts

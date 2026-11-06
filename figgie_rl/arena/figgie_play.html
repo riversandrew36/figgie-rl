@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Figgie Learning Lab · Reinforcement learning in a trading game</title>
+  <meta name="description" content="Explore Figgie strategies, understand a round, and train reinforcement-learning agents in an open Python research sandbox." />
+  <link rel="stylesheet" href="figgie_arena.css" />
+</head>
+<body>
+  <a class="skip-link" href="#arena">Skip to arena</a>
+  <main class="shell">
+    <header class="intro panel">
+      <p class="eyebrow">OPEN REINFORCEMENT-LEARNING LAB</p>
+      <h1>Figgie Learning Lab</h1>
+      <p class="lead">Explore trading strategies. Train agents. Study how they learn with hidden information.</p>
+      <p>Start by watching four scripted baselines trade. Pause the market, inspect a round, then take the experiment into Python to train and evaluate a PPO agent.</p>
+      <nav class="entry-links" aria-label="Start exploring">
+        <a class="primary-link" href="#arena">Watch a round ↓</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#reinforcement-learning">Train an agent</a>
+        <a href="#build-a-bot">Build a bot</a>
+      </nav>
+      <p class="small">Free · No account · Runs in your browser · Scripted bots here; RL training runs locally</p>
+    </header>
+    <section class="hero panel" id="arena" aria-labelledby="arena-title">
+      <h2 class="title" id="arena-title">The baseline arena</h2>
+      <p class="subtitle">Watch four bots with different playing styles quote, buy, and sell in a simplified market.</p>
+      <div class="controls">
+        <label for="durationSelect">Round Length</label>
+        <select id="durationSelect">
+          <option value="30000">30s</option>
+          <option value="60000">1min</option>
+          <option value="90000">1:30</option>
+        </select>
+        <label for="seedInput">Seed</label>
+        <input id="seedInput" type="number" value="7" step="1" />
+        <label for="speedSelect">Speed</label>
+        <select id="speedSelect">
+          <option value="1">1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="8">8×</option>
+        </select>
+        <button id="playBtn" type="button">Play</button>
+        <button id="pauseBtn" class="reset-btn" type="button" disabled>Pause</button>
+        <button id="stepBtn" class="reset-btn" type="button" disabled>Step</button>
+        <button id="shareBtn" class="reset-btn" type="button">Share this scenario</button>
+        <button id="downloadBtn" class="reset-btn" type="button" disabled>Download Log</button>
+      </div>
+      <div id="shareResult" hidden>
+        <label for="shareUrl">Scenario link (select and copy if needed)</label>
+        <input id="shareUrl" type="text" readonly />
+      </div>
+      <p id="shareStatus" role="status" class="small"></p>
+      <div class="status-row" aria-live="polite">
+        <span id="status">Status: Ready</span>
+        <span id="timer">Time Left: 00:00</span>
+        <span id="pot">Pot: $200</span>
+        <span id="goal">Goal Suit: Hidden</span>
+        <span id="winner">Majority bonus: Pending</span>
+      </div>
+    </section>
+
+    <section class="rules panel" id="how-it-works">
+      <h2 class="section-title">How Figgie works</h2>
+      <p>The deck has 40 cards: one suit has 12, two have 10, and one has 8. The <strong>goal suit</strong> is the other suit of the same color as the 12-card suit. Only goal cards pay at the end. Bots see their own hands and public market information; this viewer lets you inspect every hand.</p>
+      <p>A <strong>bid</strong> is an offer to buy; an <strong>ask</strong> is an offer to sell. Trade to collect valuable cards or earn cash from favorable prices.</p>
+      <p><strong>Worked example:</strong> if spades has 12 cards and clubs has 10, clubs scores. Ten club cards pay $10 each, leaving $100 of the $200 pot. The player with the most clubs gets that $100; tied leaders split it. Starting with $350, posting a $50 ante, spending a net $20 on trades, and ending with six clubs and the sole majority gives $350 − $50 − $20 + $60 + $100 = <strong>$440, a $90 profit</strong>.</p>
+      <strong>Rules and scripted baselines in this viewer:</strong>
+      <ul>
+        <li>Each bot starts with $350 and antes $50 (total pot $200).</li>
+        <li>All 40 cards are dealt evenly (10 each).</li>
+        <li>Bots trade during the selected timer length.</li>
+        <li>At settlement, each goal suit card pays $10 from the pot.</li>
+        <li>Bot(s) with most goal suit cards split the remaining pot.</li>
+        <li>Every bot estimates goal-suit odds from its starting hand, then plays its own style:</li>
+        <li><strong>Hunter</strong> lifts offers early to corner its likely goal suit.</li>
+        <li><strong>Banker</strong> quotes both sides around fair value and earns the spread.</li>
+        <li><strong>Detective</strong> waits, reads who is paying up on the tape, then follows.</li>
+        <li><strong>Bluffer</strong> buys a decoy suit to fake demand, sells into it, and accumulates quietly.</li>
+      </ul>
+    </section>
+
+    <section class="grid">
+      <section class="market panel">
+        <h2 class="section-title">Market Board</h2>
+        <div id="marketGrid" class="market-grid"></div>
+      </section>
+      <section class="bots panel">
+        <h2 class="section-title">Bot Ledger</h2>
+        <table>
+          <caption class="sr-only">Current bot cash, marked value, trades, and inventory</caption>
+          <thead>
+            <tr>
+              <th>Bot</th>
+              <th>Cash</th>
+              <th>MTM</th>
+              <th>Trades</th>
+              <th>Inventory (S/C/H/D)</th>
+            </tr>
+          </thead>
+          <tbody id="botRows"></tbody>
+        </table>
+      </section>
+    </section>
+
+    <section class="explanation panel" id="round-explanation" hidden aria-labelledby="explanation-title">
+      <h2 class="section-title" id="explanation-title">Understand this round</h2>
+      <p id="settlementExplanation"></p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable payout breakdown">
+        <table>
+          <caption>Cash reconciliation per bot (all amounts in chips, shown as dollars)</caption>
+          <thead><tr><th>Bot</th><th>Start</th><th>Ante</th><th>Net trades</th><th>Goal cards</th><th>Majority</th><th>Final</th><th>Profit</th></tr></thead>
+          <tbody id="payoutRows"></tbody>
+        </table>
+      </div>
+      <h3>What could each bot infer at the start?</h3>
+      <p>These probabilities use only each bot’s original hand, before trading. They are a common baseline for inference, not a transcript of every strategy’s later beliefs. <strong>Hindsight:</strong> the scoring suit is revealed only after settlement.</p>
+      <ul id="beliefRows"></ul>
+      <h3>Highest-priced goal-suit trades</h3>
+      <p>Factual highlights from the trade log, selected by price. These do not establish which trades caused a win.</p>
+      <ol id="tradeHighlights"></ol>
+    </section>
+
+    <section class="tracker panel">
+      <h2 class="section-title">Your local baseline tracker</h2>
+      <p class="small">Descriptive results from rounds in this browser, not an RL benchmark. Bot ratings and rounds stay on this device.</p>
+      <div class="tracker-controls">
+        <button id="resetStrengthBtn" class="reset-btn" type="button">Reset Strength Stats</button>
+      </div>
+      <div class="tracker-meta" id="trackerMeta">Settled rounds: 0</div>
+      <table>
+        <caption class="sr-only">Historical bot strength rankings</caption>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Bot</th>
+            <th>Rating</th>
+            <th>Win %</th>
+            <th>Avg Bankroll</th>
+            <th>Last Bankroll</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody id="strengthRows"></tbody>
+      </table>
+    </section>
+
+    <section class="tape panel">
+      <h2 class="section-title">Trade Tape</h2>
+      <ul id="tapeItems" aria-live="polite" aria-relevant="additions"></ul>
+    </section>
+
+    <section class="learning panel" id="reinforcement-learning">
+      <p class="eyebrow">FROM RULES TO LEARNED POLICIES</p>
+      <h2>Reinforcement learning is the experiment</h2>
+      <p>The browser bots follow hand-written rules. In the Python lab, <strong>Proximal Policy Optimization (PPO)</strong> learns a policy from repeated simulated rounds. The research question: can an agent learn profitable trading and inference beyond these baselines?</p>
+      <div class="rl-grid">
+        <article><h3>1. Observe</h3><p>Inventory, cash, market quotes, own quotes, trade flow, and time remaining. Optional features add flow summaries and goal probabilities inferred from the initial private hand. The policy does not receive the hidden goal label.</p></article>
+        <article><h3>2. Act</h3><p>Hold, buy, sell, or quote bids and asks through a discrete action space. Python supports an outside-book market and a player-quote market.</p></article>
+        <article><h3>3. Learn from rewards</h3><p>Trade and inventory value changes provide feedback; settlement replaces marked inventory with its actual payoff. Checkpoints are selected by validation bankroll, not training reward alone.</p></article>
+        <article><h3>4. Test and repeat</h3><p>Compare PPO against hold, random, market-maker, Bayesian, and style baselines on paired episode seeds. Keep validation separate from final testing. Self-play introduces frozen learned opponents.</p></article>
+      </div>
+      <h3>Run your first RL experiment</h3>
+      <p>Clone the repository and use Python 3.10 or newer. Installation includes PyTorch and can take a few minutes. This small run checks the workflow; it is not evidence of strong play.</p>
+      <pre><code>python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+figgie-train --config configs/ppo_learning.yaml
+figgie-eval --model-path artifacts/ppo_learning/best_model/best_model.zip \
+  --config configs/ppo_learning.yaml --episodes 50 --seed 610000 \
+  --benchmark --output results/learning.json</code></pre>
+      <p><a href="https://github.com/riversandrew36/figgie-rl/blob/main/docs/RL_QUICKSTART.md">Training, evaluation, and self-play guide →</a></p>
+      <h3>Research status</h3>
+      <p>Historical PPO experiments and scripted-market diagnostics are documented with their limitations. No validated claim of improved PPO performance in the newer player-quote market is made. The updated full training run and reserved final evaluation remain outstanding.</p>
+      <p><a href="https://github.com/riversandrew36/figgie-rl/blob/main/docs/PROJECT_STATUS.md">Read experiment records and limitations →</a></p>
+    </section>
+
+    <section class="learning panel" id="build-a-bot">
+      <h2>Build a baseline. Challenge a learned agent.</h2>
+      <p>Start with the Python scripted styles, change a parameter, then benchmark against a saved PPO checkpoint on the same seeds. The quickstart includes a one-parameter experiment and explains how to avoid tuning on final-test data.</p>
+      <p><a href="https://github.com/riversandrew36/figgie-rl">Explore the source on GitHub</a> · <a href="https://github.com/riversandrew36/figgie-rl/blob/main/CONTRIBUTING.md">Contribute an experiment</a></p>
+      <details><summary>Simulation assumptions and scope</summary>
+        <p>The browser uses a separate JavaScript simulation with drifting external quotes and probabilistic fills. It illustrates baseline behavior; it does not execute Python or trained PPO checkpoints. Python also offers a player-quote market with no outside book. Seeds, mechanics, and results are not interchangeable between the implementations.</p>
+        <p>This is an independent educational implementation of Figgie, created by Jane Street. It is not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> or <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">watch Jane Street’s gameplay video</a>.</p>
+        <p>No accounts or analytics. Only the baseline tracker is saved locally. No real money is involved.</p>
+      </details>
+    </section>
+
+    <section class="footer-line panel" id="summary">
+      Press Play to start a round.
+    </section>
+  </main>
+
+  <script src="figgie_arena.js"></script>
+</body>
+</html>
