@@ -1,0 +1,61 @@
+study_id: figgie_confirmation_20261106
+training_seeds:
+- 83
+- 97
+- 109
+training_timesteps: 122880
+self_play_iterations: 6
+self_play_chunk_timesteps: 20480
+workers: 2
+validation:
+  seed: 1600000
+  episodes: 100
+exploratory:
+  seed: 1700000
+  episodes: 100
+final:
+  seed: 1800000
+  episodes: 500
+familiar_opponents:
+- hunter
+- banker
+- detective
+shifted_opponents:
+- banker
+- detective
+- bluffer
+historical_checkpoints:
+- artifacts/rl_study_20261106_fixed_seed_7/best_model/best_model.zip
+- artifacts/rl_study_20261106_fixed_seed_17/best_model/best_model.zip
+- artifacts/rl_study_20261106_fixed_seed_27/best_model/best_model.zip
+- artifacts/rl_study_20261106_self_play_seed_7/self_play/checkpoints/iter_005.zip
+- artifacts/rl_study_20261106_self_play_seed_17/self_play/checkpoints/iter_005.zip
+- artifacts/rl_study_20261106_self_play_seed_27/self_play/checkpoints/iter_005.zip
+reward:
+  reward_mode: wealth_delta
+  gamma: 1.0
+env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  goal_card_value: 10.0
+  goal_majority_bonus: 40.0
+  pot_conserving_settlement: true
+  quote_ttl_steps: 8
+  include_belief_features: true
+  include_goal_belief_features: true
+  external_fill_prob: 0.0
+  external_order_flow_prob: 0.0
+train:
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 1.0
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5

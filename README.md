@@ -26,6 +26,28 @@ Independent educational implementation of [Figgie, created by Jane Street](https
 Not affiliated with or endorsed by Jane Street. [Watch Jane Street's gameplay video](https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s).
 Code: [MIT](LICENSE). [Contribute](CONTRIBUTING.md).
 
+## Feasible and structured actions
+
+The Python lab now includes observable action-feasibility masks and a policy that
+factors decisions into type, suit, and quote price. Both retain the original 105
+action indices and market rules. Run `figgie-action-study --config
+configs/action_interfaces.yaml` from the source checkout to compare flat/structured
+policies with masks on/off. See [the interface guide](docs/ACTION_INTERFACES.md)
+for masking semantics, checkpoint loading, and the bounded study design.
+
+## Quote rules and reward scale
+
+`EnvConfig.quote_rules` defaults to `official` in Python: a quote must be backed by
+cash or a card when posted, a quote that crosses another player's quote executes at
+the resting price, and any trade clears every resting quote. `legacy` keeps the
+earlier rules and is pinned in the configs of the completed November 2026 studies.
+The browser arena still uses its simplified rules.
+
+`EnvConfig.reward_scale` multiplies only the reward returned to the learner.
+Bankrolls, `reward_breakdown`, and evaluation reports stay in chips. Without scaling,
+chip-sized value errors dominate PPO's shared gradient clipping, so
+`configs/ppo_learning.yaml` and `configs/endogenous_market.yaml` use `0.02`.
+
 ## Quickstart
 
 1. Create and activate a virtual environment.
@@ -120,7 +142,7 @@ The best-model sidecar is replaced whenever a later checkpoint wins selection. T
 
 The standard and player-quote configs now select checkpoints using 200 fixed validation episodes (seeds 50007–50206), every 20,000 training timesteps. A 120,000-step run therefore makes six selections instead of 24 selections on 20 episodes. The smoke config deliberately retains a small, quick validation set. Self-play saves every iteration and does not run the validation settings in its YAML.
 
-The `evaluation` block reserves seeds 700000–700999 for a 1,000-episode final test. Training checks that this range does not overlap validation and does not run it. Exploratory evaluation retains the default 200 episodes starting at seed 101. After choosing a checkpoint and freezing the experiment, run:
+The `evaluation` block reserves seeds 700000–700999 for a 1,000-episode final test. Training checks that this range does not overlap validation and does not run it. Exploratory evaluation retains the default 200 episodes starting at seed 101. The November 6 study has already examined this final range. The command below reproduces that frozen historical test. For a new experiment informed by those results, reserve a fresh range before training and selection:
 
 ```bash
 figgie-eval --model-path artifacts/ppo_goal_belief_v2/best_model/best_model.zip \
@@ -129,7 +151,7 @@ figgie-eval --model-path artifacts/ppo_goal_belief_v2/best_model/best_model.zip 
 
 `--test` uses the configured range and rejects simultaneous `--seed` or `--episodes` overrides. Reports record `configuration.evaluation_split` as `test` or `exploratory`. A larger validation set reduces selection noise; repeated selection still creates optimism, so use the final test for reporting rather than tuning. After examining that test, reserve fresh seeds for future experiments.
 
-The updated standard config uses `run_name: ppo_goal_belief_v2`, preserving the historical `ppo_goal_belief` artifacts. No full v2 training or reserved final test has been run yet.
+The updated standard config uses `run_name: ppo_goal_belief_v2`, preserving the historical `ppo_goal_belief` artifacts. The November 6 substantive study completed full v2 training and its reserved final test, plus a three-seed player-quote/self-play comparison. The current learned policies were not competitive; see [the study summary](docs/RL_STUDY_RESULTS.md) and its reward-alignment findings. Those test ranges are now consumed.
 
 ## Player-quote market and self-play
 

@@ -25,3 +25,5 @@ results/
 prompts/
 Figgie_App_One_Pager.pdf
 docs/GROK_RL_PROMPT.md
+# Generated videos, narration, and recording intermediates stay local.
+deliverables/

@@ -16,6 +16,7 @@ dependencies = [
   "PyYAML>=6.0.1",
   "rich>=13.7",
   "stable-baselines3>=2.3.2",
+  "sb3-contrib>=2.3.2,<3.0",
   "torch>=2.2",
   "tqdm>=4.66",
   "tensorboard>=2.14",
@@ -35,6 +36,7 @@ figgie-eval = "figgie_rl.train.evaluate:main"
 figgie-self-play = "figgie_rl.train.self_play:main"
 figgie-demo = "figgie_rl.train.inspect_env:main"
 figgie-arena = "figgie_play:main"
+figgie-action-study = "figgie_rl.train.action_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

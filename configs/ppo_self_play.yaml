@@ -2,6 +2,7 @@ run_name: ppo_self_play
 seed: 17
 
 env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
   max_steps: 140
   num_players: 4
   tick_size: 1.0

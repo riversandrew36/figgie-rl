@@ -2,6 +2,7 @@ run_name: ppo_goal_belief_v2
 seed: 7
 
 env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
   max_steps: 120
   num_players: 4
   tick_size: 1.0
