@@ -153,6 +153,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=6)
     parser.add_argument("--chunk-timesteps", type=int, default=100_000)
     parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--checkpoint-pool-size", type=int, default=1,
+                        help="Historical PPO opponents sampled each iteration (max 3).")
+    parser.add_argument("--initial-checkpoints", nargs="*", default=[],
+                        help="Compatible historical PPO checkpoints available before iteration 0.")
     return parser.parse_args()
 
 
@@ -166,6 +170,7 @@ def _choose_pool(
     rng: np.random.Generator,
     num_suits: int,
     env_config: EnvConfig | None = None,
+    checkpoint_pool_size: int = 1,
 ) -> list[BaselinePolicy]:
     if env_config is not None and env_config.opponent_difficulties is not None:
         pool = policies_from_difficulties(env_config.opponent_difficulties)
@@ -175,7 +180,11 @@ def _choose_pool(
         pool = [RandomTrader(), InventoryAwareMarketMaker(), BayesianGoalTrader()]
     if checkpoint_paths:
         path = checkpoint_paths[int(rng.integers(0, len(checkpoint_paths)))]
-        pool[-1] = FrozenPPOOpponent(path, num_suits=num_suits, env_config=env_config)
+        count = min(len(pool), checkpoint_pool_size, len(checkpoint_paths))
+        slots = list(range(len(pool) - count, len(pool)))
+        paths = rng.choice(checkpoint_paths, size=count, replace=False)
+        for slot, path in zip(slots, paths):
+            pool[slot] = FrozenPPOOpponent(str(path), num_suits=num_suits, env_config=env_config)
     return pool
 
 
@@ -194,6 +203,8 @@ def main() -> None:
         raise ValueError("--iterations must be > 0")
     if args.chunk_timesteps <= 0:
         raise ValueError("--chunk-timesteps must be > 0")
+    if not 1 <= args.checkpoint_pool_size <= 3:
+        raise ValueError("--checkpoint-pool-size must be in [1, 3]")
 
     cfg = load_yaml(args.config)
     env_cfg = dict(cfg["env"])
@@ -213,12 +224,16 @@ def main() -> None:
     tb_dir.mkdir(parents=True, exist_ok=True)
 
     rng = np.random.default_rng(args.seed)
-    checkpoint_paths: list[str] = []
+    checkpoint_paths: list[str] = list(args.initial_checkpoints)
+    missing_checkpoints = [path for path in checkpoint_paths if not Path(path).is_file()]
+    if missing_checkpoints:
+        raise FileNotFoundError(f"Missing initial checkpoints: {missing_checkpoints}")
     model: PPO | None = None
 
     for iteration in range(args.iterations):
         opponents = _choose_pool(
-            checkpoint_paths, rng, num_suits=len(SUITS), env_config=env_config
+            checkpoint_paths, rng, num_suits=len(SUITS), env_config=env_config,
+            checkpoint_pool_size=args.checkpoint_pool_size
         )
         vec_env = DummyVecEnv(
             [
@@ -273,7 +288,9 @@ def main() -> None:
                     "eval_freq", "n_eval_episodes", "deterministic_eval", "validation_seed",
                     "total_timesteps",
                 }
-            } | {"iterations": args.iterations, "chunk_timesteps": args.chunk_timesteps},
+            } | {"iterations": args.iterations, "chunk_timesteps": args.chunk_timesteps,
+                "checkpoint_pool_size": args.checkpoint_pool_size,
+                "initial_checkpoints": args.initial_checkpoints},
         )
         write_model_metadata(
             ckpt_path, role="self_play_checkpoint", context=context,

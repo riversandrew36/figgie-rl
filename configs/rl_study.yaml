@@ -1,0 +1,40 @@
+# Frozen initial substantive study. No tuning after the held-out results are read.
+study_id: rl_study_20261106
+training_seeds: [7, 17, 27]
+training_timesteps: 122880
+self_play_iterations: 6
+self_play_chunk_timesteps: 20480
+workers: 2
+validation: {seed: 1200000, episodes: 200}
+exploratory: {seed: 1300000, episodes: 200}
+final: {seed: 1400000, episodes: 1000}
+familiar_opponents: [hunter, banker, detective]
+shifted_opponents: [banker, detective, bluffer]
+standard_config: configs/ppo_simple.yaml
+
+env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  goal_card_value: 10.0
+  pot_conserving_settlement: true
+  external_fill_prob: 0.0
+  external_order_flow_prob: 0.0
+  quote_ttl_steps: 8
+  include_belief_features: true
+  include_goal_belief_features: true
+
+train:
+  n_envs: 4
+  learning_rate: 0.0003
+  n_steps: 256
+  batch_size: 256
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  deterministic_eval: true

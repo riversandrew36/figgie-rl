@@ -81,6 +81,7 @@ jobs:
           "$BIN/figgie-self-play" --help >/dev/null
           "$BIN/figgie-demo" --help >/dev/null
           "$BIN/figgie-arena" --help >/dev/null
+          "$BIN/figgie-action-study" --help >/dev/null
           "$BIN/figgie-demo" --seed 7 --steps 1 >/dev/null
           "$BIN/python" - <<'PY'
           import figgie_play

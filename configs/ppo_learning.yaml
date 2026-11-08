@@ -3,6 +3,7 @@ run_name: ppo_learning
 seed: 17
 
 env:
+  reward_scale: 0.02  # Keeps the critic loss from swamping shared gradient clipping.
   market_mode: endogenous
   max_steps: 80
   num_players: 4

@@ -1,0 +1,33 @@
+study_id: action_interfaces_20261106
+seeds: [211, 223, 227]
+conditions: [flat, flat_masked, structured, structured_masked]
+stages: 2
+chunk_timesteps: 10240
+workers: 2
+validation: {seed: 3000000, episodes: 40}
+exploratory: {seed: 3100000, episodes: 100}
+lineups:
+  familiar: [hunter, banker, detective]
+  shifted: [banker, detective, bluffer]
+env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  pot_conserving_settlement: true
+  include_belief_features: true
+  include_goal_belief_features: true
+  reward_mode: wealth_delta
+  gamma: 1.0
+train:
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 1.0
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5

@@ -1,6 +1,99 @@
 # Project status: market integration, validation, and experiment records
 
-Updated October 12, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
+Updated November 6, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
+
+## Market and reward corrections — November 8, 2026
+
+An audit found that unscaled chip rewards let the critic's gradient dominate PPO's
+shared gradient clip, about 200–580 against 0.2 for the policy. It also found
+unbacked quotes blocking real trades, quotes surviving fills, and crossed quotes that
+never matched. Python now defaults to `quote_rules: official`, and supports
+`reward_scale`. Completed study configs pin `quote_rules: legacy` with no scaling.
+Their study controllers will still refuse reruns because source hashes changed.
+
+Interpret the November 6 PPO results below as results for the unscaled legacy setup,
+not as limits on PPO in this game. An exploratory check on the official-rules market
+used three training seeds (301–303), `gamma=1`, and 400 deals (seeds
+9200000–9200399):
+
+| Setup | Familiar profit | Shifted profit |
+|---|---:|---:|
+| PPO, raw rewards, 122,880 steps | −192.08 | −209.61 |
+| PPO, reward scale 0.02, 122,880 steps | −6.01 | −5.45 |
+| PPO, reward scale 0.02, 491,520 steps | −5.48 | −3.02 |
+| Hold | −3.73 | −3.66 |
+| Bayesian | −0.51 | −3.30 |
+
+Scaling removes the large losses, but scaled PPO has not shown an edge over Hold or
+Bayesian; the scaled PPO-minus-Hold seed intervals include zero. Bayesian's profit
+against these opponents also fell from about +11 under legacy rules to about zero, so
+earlier scripted-baseline edges should not be assumed under official rules. The
+browser arena has not changed. This is not a held-out final test.
+
+## Independent matched confirmation completed — November 6, 2026
+
+Fresh seeds 83, 97, 109 and matched stage resets/checkpoint timing were evaluated
+on both final lineups (500 unseen shared deals each). See [confirmation results](CONFIRMATION_RESULTS.md)
+and the local report `results/figgie_confirmation_20261106/REPORT.md`.
+
+Fixed/pool profits: familiar −40.52/−0.94; shifted −38.05/−1.64 chips per round.
+Pool results are more consistent but do not reliably beat Hold, and trail Bayesian.
+The matched three-seed method-difference intervals include zero. Deterministic
+pool policies remain dominated by selling particular suits. Final seeds
+1800000–1800499 are consumed. No post-test tuning or publication occurred.
+
+## Competitiveness follow-up wrap-up — November 6, 2026
+
+All four requested approaches were implemented and piloted: reward alignment,
+baseline ladder evaluation, five teacher-specific BC/PPO policies, and a diverse
+historical checkpoint pool. The reward and imitation pilots did not reliably beat
+Hold. The historical pool was promising on one exploratory seed (−2.10 familiar,
++3.46 shifted), and advanced to six matched-budget training runs.
+
+All six 122,880-step main runs finished. Remaining checkpoint selection and final
+evaluation were stopped at the user's request to finish up now. Main final seeds
+1509000–1509999 were not opened. The main results do not yet support a final
+competitiveness claim. Seed 49 was also used in the pilot, so an independent
+confirmation should add a fresh third seed or exclude that development seed.
+
+Completed local report: `results/figgie_competitiveness_20261106_pilot/REPORT.md`.
+Pilot figures, raw per-episode evaluations, configs, models, and source hashes are
+saved locally. No website, model, or result publication was performed.
+
+## Substantive RL study completed — November 6, 2026
+
+The full standard v2 run, three fixed-opponent and three six-stage self-play runs,
+and their final held-out evaluations are complete. See [the study summary](RL_STUDY_RESULTS.md)
+and the local generated report `results/rl_study_20261106/REPORT.md`.
+
+Player-quote mean profits across three training seeds were −96.05 (fixed) and
+−113.27 (self-play) against familiar opponents; −109.20 and −122.63 against the
+changed lineup. The study does not resolve a self-play advantage. Deterministic
+policies showed near-constant quote behavior. A post-hoc diagnostic identified a
+ranking mismatch between discounted marked-wealth rewards and final cash, which
+is a priority for a future controlled study rather than a post-test adjustment.
+
+Final seeds 700000–700999 and 1400000–1400999 have now been examined. Preserve
+these reports; reserve fresh test ranges for any future tuning informed by them.
+Models and raw reports remain local. Public website claims have not been changed.
+
+## Action interface comparison completed — November 6, 2026
+
+Implemented and tested optional action feasibility masks and a policy with
+conditional action, suit, and price heads. Both retain the existing market
+execution and 105-action mapping. The corrected four-condition comparison used
+three seeds and 20,480 PPO steps per seed. Masking reduced infeasible pre-step
+choices to zero; average profit effects were positive but inconclusive. The
+structured policy did not improve profit at this budget. All conditions remained
+below Hold and Bayesian in both lineups. See the local
+[action interface report](../results/action_interfaces_20261106_v2/REPORT.md).
+
+An earlier partial pilot used an incorrect high-price rung lookup and was excluded
+from results. The corrected implementation has a regression test for the $60 bid
+against $59/$60 cash, plus bit-for-bit seeded comparisons in both market modes.
+The action study's final-seed ranges are exploratory development data, not an
+untouched confirmatory final test. The new MaskablePPO models require the supplied
+mask-aware evaluator/loader. Existing browser bots remain scripted and are unchanged.
 
 ## Learning Lab release verification — November 6, 2026
 
@@ -14,7 +107,7 @@ benchmark on seeds 610000–610049 exported successfully. This is an installatio
 workflow check, not a claim of competitive learned play. Validation seeds
 600000–600019 were used for checkpoint selection. Reserved final seeds
 620000–620199 remain untouched. The historical full v2 training and its reserved
-final test below remain outstanding. Generated models and reports stay local.
+final test were subsequently completed in the substantive study above. Generated models and reports stay local.
 
 ## Current state
 
@@ -25,7 +118,7 @@ final test below remain outstanding. Generated models and reports stay local.
 - Every self-play checkpoint and final model now has a metadata sidecar. Self-play saves each iteration without bankroll selection; `checkpoint_selection` is null.
 - Standard PPO and endogenous configs now validate on 200 episodes every 20,000 training timesteps. Validation seeds are 50007–50206. The smoke config remains intentionally small. The self-play CLI does not use its YAML validation settings.
 - The configs reserve final-test seeds 700000–700999. Training rejects validation/test overlap and never executes the final test. The evaluator's `--test` option selects the reserved range, rejects seed/count overrides, and labels the report as a test result.
-- The standard config now writes to `artifacts/ppo_goal_belief_v2/` to preserve the earlier goal-belief checkpoint. No full v2 run or reserved final test has been performed.
+- The standard config now writes to `artifacts/ppo_goal_belief_v2/` to preserve the earlier goal-belief checkpoint. The full v2 run and reserved final test are now complete; see the study summary above.
 
 ## Player-quote diagnostic evidence
 
@@ -65,7 +158,7 @@ python3 -m figgie_rl.train.self_play --config configs/endogenous_market.yaml \
   --iterations 6 --chunk-timesteps 100000
 ```
 
-After freezing the standard experiment, run the reserved final test once and save its report:
+The following reproduces the completed standard final test. Future experiments informed by its results need fresh test ranges:
 
 ```bash
 python3 -m figgie_rl.train.evaluate \

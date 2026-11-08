@@ -1,0 +1,39 @@
+study_id: figgie_competitiveness_20261106_pilot
+seed: 47
+# Pilot data only; seeds 1500000–1500099 will never be called final.
+validation_seed: 1500000
+validation_episodes: 100
+exploratory_seed: 1501000
+exploratory_episodes: 100
+train:
+  total_timesteps: 20480
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+env:
+  quote_rules: legacy  # Preserves the rules in force when this run was recorded.
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  goal_card_value: 10.0
+  goal_majority_bonus: 40.0
+  pot_conserving_settlement: true
+  quote_ttl_steps: 8
+  include_belief_features: true
+  include_goal_belief_features: true
+  opponent_difficulties: [hunter, banker, detective]
+  external_fill_prob: 0.0
+  external_order_flow_prob: 0.0
+conditions:
+  wealth_delta_gamma_099: {reward_mode: wealth_delta, gamma: 0.99}
+  wealth_delta_gamma_1: {reward_mode: wealth_delta, gamma: 1.0}
+  terminal_profit_gamma_1: {reward_mode: terminal_profit, gamma: 1.0}
+  potential_shaped_gamma_099: {reward_mode: potential_shaped, gamma: 0.99}

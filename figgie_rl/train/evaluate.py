@@ -242,7 +242,8 @@ def run_evaluation(
                     view = env._opponent_view(env.agent_idx)
                     action_idx = encode_action(env, baseline.act(view=view, rng=agent_rng))
                 obs, reward, terminated, truncated, final_info = env.step(action_idx)
-                reward_path.append(reward_path[-1] + float(reward))
+                # Drawdown is reported in chips whatever scale the learner trained on.
+                reward_path.append(reward_path[-1] + float(reward) / env.config.reward_scale)
                 done = terminated or truncated
 
             winner_indices = final_info.get("winner_indices", [])

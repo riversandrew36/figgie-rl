@@ -129,3 +129,20 @@ def test_two_iteration_endogenous_self_play_reloads_its_checkpoint(
         frozen = FrozenPPOOpponent(str(stem), num_suits=4)
         assert frozen.config.market_mode == "endogenous"
         assert frozen.model.action_space.n == 105
+
+
+def test_historical_pool_size_is_capped_by_available_checkpoints(monkeypatch) -> None:
+    import figgie_rl.train.self_play as module
+
+    class FakeFrozen:
+        def __init__(self, path, num_suits, env_config=None):
+            self.path = path
+
+    monkeypatch.setattr(module, "FrozenPPOOpponent", FakeFrozen)
+    env_config = EnvConfig(market_mode="endogenous", opponent_difficulties=("hunter", "banker", "detective"))
+    scripts_only = module._choose_pool([], np.random.default_rng(1), 4, env_config, checkpoint_pool_size=3)
+    assert len(scripts_only) == 3
+    two_history = module._choose_pool(["a", "b"], np.random.default_rng(1), 4, env_config, checkpoint_pool_size=3)
+    assert sum(isinstance(policy, FakeFrozen) for policy in two_history) == 2
+    all_history = module._choose_pool(["a", "b", "c", "d"], np.random.default_rng(1), 4, env_config, checkpoint_pool_size=3)
+    assert sum(isinstance(policy, FakeFrozen) for policy in all_history) == 3

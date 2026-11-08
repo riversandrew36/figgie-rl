@@ -1,10 +1,11 @@
 # Player-quote market. The outside book, forced fills, and random order flow
 # in EnvConfig are ignored while market_mode is endogenous. Goal-suit
 # probabilities stay off: this config is the market change, not a training run.
-run_name: endogenous_market
+run_name: endogenous_market_v2
 seed: 7
 
 env:
+  reward_scale: 0.02  # Keeps the critic loss from swamping shared gradient clipping.
   market_mode: endogenous
   max_steps: 120
   num_players: 4
@@ -41,7 +42,7 @@ train:
 
 # Reserved final test: run once after checkpoint selection, never for tuning.
 evaluation:
-  test_seed: 700000
+  test_seed: 2000000
   test_episodes: 1000
 
 paths:

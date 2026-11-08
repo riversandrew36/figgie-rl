@@ -23,6 +23,10 @@ from figgie_rl.agents.baselines import (
 from figgie_rl.envs.mechanics import SUITS, deal_round, goal_suit_posterior, settle_round
 
 MARKET_MODES = ("exogenous", "endogenous")
+# official: quotes must be backed when posted, crossing quotes execute, and any
+# trade clears every resting quote. legacy: the rules used by the November 2026
+# studies, kept only so those configurations retain their original meaning.
+QUOTE_RULES = ("official", "legacy")
 # Absolute dollars. The rungs above $10 exist so a bid can pay for a share of
 # the $100/$120 majority remainder, not only the $10 face value. $60 is a cap.
 ENDOGENOUS_PRICE_LADDER: tuple[float, ...] = (
@@ -59,9 +63,15 @@ class EnvConfig:
     # exogenous: outside random-walk book and probabilistic forced fills.
     # endogenous: prices come only from player quotes; no forced trades.
     market_mode: str = "exogenous"
+    gamma: float = 0.99
+    reward_mode: str = "wealth_delta"
     seed: int | None = None
     # One label per scripted opponent: weak | average | tough | bayesian | hunter | banker | detective | bluffer
     opponent_difficulties: tuple[str, ...] | None = None
+    quote_rules: str = "official"
+    # Multiplies only the reward returned to the learner. Chips remain the unit
+    # of bankrolls, info["reward_breakdown"], and evaluation reports.
+    reward_scale: float = 1.0
 
     def __post_init__(self) -> None:
         od = self.opponent_difficulties
@@ -91,6 +101,16 @@ class EnvConfig:
             raise ValueError(
                 f"market_mode must be one of {MARKET_MODES}, got {self.market_mode!r}"
             )
+        if self.reward_mode not in {"wealth_delta", "terminal_profit", "potential_shaped"}:
+            raise ValueError(f"Unsupported reward_mode {self.reward_mode!r}")
+        if not 0.0 <= self.gamma <= 1.0:
+            raise ValueError("gamma must be in [0, 1]")
+        if self.quote_rules not in QUOTE_RULES:
+            raise ValueError(
+                f"quote_rules must be one of {QUOTE_RULES}, got {self.quote_rules!r}"
+            )
+        if self.reward_scale <= 0.0:
+            raise ValueError("reward_scale must be > 0")
 
 
 def build_policy_observation(
@@ -616,6 +636,44 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             if seller_idx == self.agent_idx:
                 self.agent_spread_capture += price - mid
 
+        if self.config.quote_rules == "official":
+            self._clear_all_quotes()
+
+    def _clear_all_quotes(self) -> None:
+        self.bid_quotes[:] = -np.inf
+        self.ask_quotes[:] = np.inf
+        self.bid_quote_ages[:] = -1
+        self.ask_quote_ages[:] = -1
+
+    def _post_official_quote(self, player_idx: int, kind: str, suit: int, quote: float) -> None:
+        """Reject an unbacked quote, execute a crossing quote, or rest it."""
+        if kind == "quote_bid":
+            if self.cash[player_idx] < quote:
+                return
+            ask, seller = self._best_ask(suit, excluding_player=player_idx)
+            if seller is not None and quote >= ask:
+                self._trade(
+                    player_idx, seller, suit, ask,
+                    by_quote_fill=seller == self.agent_idx,
+                    aggressor_side="buy",
+                )
+                return
+            self.bid_quotes[player_idx, suit] = quote
+            self.bid_quote_ages[player_idx, suit] = 0
+            return
+        if self.inventories[player_idx, suit] <= 0:
+            return
+        bid, buyer = self._best_bid(suit, excluding_player=player_idx)
+        if buyer is not None and quote <= bid:
+            self._trade(
+                buyer, player_idx, suit, bid,
+                by_quote_fill=buyer == self.agent_idx,
+                aggressor_side="sell",
+            )
+            return
+        self.ask_quotes[player_idx, suit] = quote
+        self.ask_quote_ages[player_idx, suit] = 0
+
     def _apply_semantic_action(self, player_idx: int, action: OpponentAction) -> None:
         kind = action.kind
         suit = action.suit
@@ -625,6 +683,12 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         if suit is None:
             return
         if suit < 0 or suit >= self.num_suits:
+            return
+
+        if kind in {"quote_bid", "quote_ask"} and self.config.quote_rules == "official":
+            self._post_official_quote(
+                player_idx, kind, suit, self._resolve_quote_price(action)
+            )
             return
 
         if kind == "quote_bid":
@@ -816,7 +880,7 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         after_value = self._mark_to_market(self.agent_idx)
         trade_reward = post_trade_value - before_value
         inventory_reward = after_value - post_trade_value
-        reward = trade_reward + inventory_reward
+        wealth_reward = trade_reward + inventory_reward
 
         self.current_step += 1
         terminated = self.current_step >= self.config.max_steps
@@ -833,6 +897,7 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             },
         }
 
+        terminal_delta = 0.0
         if terminated:
             terminal_inventories = self.inventories.copy()
             settled = settle_round(
@@ -849,9 +914,12 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             )
             self.cash = settled
             terminal_delta = float(self.cash[self.agent_idx] - after_value)
-            reward += terminal_delta
+            terminal_profit = float(self.cash[self.agent_idx] - self.config.starting_cash)
             info["reward_breakdown"]["settlement_reward"] = terminal_delta
+        else:
+            terminal_profit = 0.0
 
+        if terminated:
             fill_rate = (
                 self.agent_quote_fill_count / self.agent_trade_count
                 if self.agent_trade_count > 0
@@ -906,5 +974,19 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             )
             self.inventories[:] = 0
 
+        if self.config.reward_mode == "wealth_delta":
+            reward = wealth_reward + terminal_delta
+        elif self.config.reward_mode == "terminal_profit":
+            reward = terminal_profit if terminated else 0.0
+        else:
+            initial_wealth = self.config.starting_cash - self.config.ante
+            before_potential = before_value - initial_wealth
+            after_potential = 0.0 if terminated else after_value - initial_wealth
+            shaping = self.config.gamma * after_potential - before_potential
+            reward = (terminal_profit if terminated else 0.0) + shaping
+            info["reward_breakdown"]["potential_shaping_reward"] = float(shaping)
+        info["reward_mode"] = self.config.reward_mode
+        info["reward_breakdown"]["selected_objective_reward"] = float(reward)
+
         obs = self._build_observation(self.agent_idx)
-        return obs, float(reward), terminated, truncated, info
+        return obs, float(reward) * self.config.reward_scale, terminated, truncated, info
