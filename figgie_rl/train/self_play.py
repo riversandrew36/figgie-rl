@@ -27,6 +27,7 @@ from figgie_rl.envs.simple_figgie_env import (
     EnvConfig,
     MARKET_MODES,
     MISSING_VIEW_ASK,
+    PLAYER_HISTORY_SIZE,
     SimpleFiggieEnv,
     build_policy_observation,
 )
@@ -56,7 +57,8 @@ class FrozenPPOOpponent:
             if env_config is not None and any(
                 getattr(saved_config, field) != getattr(env_config, field)
                 for field in (
-                    "market_mode", "include_belief_features", "include_goal_belief_features"
+                    "market_mode", "include_belief_features", "include_goal_belief_features",
+                    "include_player_history_features",
                 )
             ):
                 raise ValueError("Frozen PPO checkpoint schema does not match the self-play environment")
@@ -92,6 +94,7 @@ class FrozenPPOOpponent:
             + num_suits * int(self.include_belief_features)
             + num_suits * int(self.include_goal_belief_features)
             + (2 * num_suits if env_config.market_mode == "endogenous" else 0)
+            + (PLAYER_HISTORY_SIZE if env_config.include_player_history_features else 0)
         )
         expected_actions = len(SimpleFiggieEnv.build_action_table(
             num_suits, market_mode=env_config.market_mode
@@ -131,6 +134,9 @@ class FrozenPPOOpponent:
             include_goal_belief_features=self.include_goal_belief_features,
             bid_available=bid_available,
             ask_available=ask_available,
+            player_history=(
+                view.player_history if self.config.include_player_history_features else None
+            ),
         )
         if obs.shape != self.model.observation_space.shape:
             raise ValueError(

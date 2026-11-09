@@ -30,6 +30,69 @@ against these opponents also fell from about +11 under legacy rules to about zer
 earlier scripted-baseline edges should not be assumed under official rules. The
 browser arena has not changed. This is not a held-out final test.
 
+## Short mixed-lineup check and pause — November 8, 2026
+
+Five seeds (801–805) fine-tuned Hunter copies for 491,520 steps against both lineups
+with `ev_potential`. On exploratory seeds 5300000–5300399, the final policy's gain over
+its imitation start was +0.62 ± 0.92 (familiar) and −3.80 ± 4.96 (shifted). This did not
+meet the predeclared rule of clearly beating the copy on one lineup without clearly
+losing on the other, so RL tuning is paused. `configs/learning_ladder.yaml` and
+`scripts/run_learning_ladder.py` are ready if work resumes; no full ladder step has run.
+
+## Expected-value reward comparison — November 8, 2026
+
+`reward_mode: ev_potential` replaces last-trade marks with potential-based shaping on
+expected settlement wealth from the player's initial hand. Starting from Hunter copies,
+five training seeds (601–605) compared it with `wealth_delta`, using 245,760 fine-tuning
+steps, validation seeds 4700000–4700399, and exploratory seeds 4800000–4800799.
+
+| Final policy minus its own imitation start | Familiar | Shifted |
+|---|---:|---:|
+| `wealth_delta` | −1.98 ± 2.94 | −1.07 ± 1.10 |
+| `ev_potential` | −0.15 ± 2.20 | +1.71 ± 2.17 |
+
+Neither reward showed a reliable RL gain over imitation, because every interval includes
+zero. The expected-value reward did not show the degradation trend of the control and
+is the better candidate for longer runs, but the study does not establish that it is
+superior. Phase 1 remains incomplete and no held-out test was run.
+
+## Teacher warm-start pilot — November 8, 2026
+
+Masked PPO actors and critics were pretrained on 2,000 teacher rounds, then fine-tuned
+for 245,760 steps with reduced learning rate, clip range, and entropy. Training seeds
+501–503, validation seeds 4300000–4300199, and exploratory seeds 4400000–4400399 were
+used; `configs/warm_start_pilot.yaml` and `scripts/run_warm_start_pilot.py` define the
+run. Imitation agreement on held-out teacher rounds was 88–91% for Hunter and 66–67%
+for Bluffer.
+
+Before any RL, the Hunter copy beat Hold on both lineups (+4.68 ± 0.65 familiar,
++6.91 ± 3.19 shifted) and beat Bayesian on familiar (+1.23 ± 0.65). It trailed its
+teacher on familiar by 1.67 ± 0.65. PPO fine-tuning did not improve on the copies:
+final Hunter profit moved from −0.12 to −1.14 on familiar and from +0.38 to −1.07 on
+shifted. The edge shown here comes from imitating scripted knowledge, and is not
+evidence that RL learned to trade. Phase 1 remains incomplete and no held-out test
+was run.
+
+## Phase 1 development pilot — November 8, 2026
+
+The pilot compared flat and structured masked PPO, with and without per-opponent
+public history (`include_player_history_features`). It used training seeds 401–403,
+491,520 steps per run, validation seeds 4000000–4000199, and exploratory seeds
+4100000–4100399. Local outputs are in `results/phase1_pilot_*_20261108/`; summarize
+them with `scripts/report_phase1.py`.
+
+No condition beat Hold and Bayesian. Across both lineups, mean profit stayed between
+−3.0 and +1.9 chips, and the new history inputs did not help at this budget. Most
+learned actions were quotes, usually asks, with only 0.1–5.2 trades per round on the
+familiar lineup. Phase 1's five-seed held-out test was not run, so no test seeds were
+spent.
+
+On separate seeds 4200000–4200799, a diagnostic that cheats by reading the goal suit
+earned up to about +79 (familiar) and +82 (shifted) with a $16 price cap. This is an
+upper reference, not a playable strategy. Scripted Hunter earned +6.29 and +7.25,
+Bluffer +5.47 and +7.18, and Bayesian +1.28 and 0.00. Future exit criteria should
+include Hunter and Bluffer, which are stronger baselines than Bayesian here.
+
 ## Independent matched confirmation completed — November 6, 2026
 
 Fresh seeds 83, 97, 109 and matched stage resets/checkpoint timing were evaluated

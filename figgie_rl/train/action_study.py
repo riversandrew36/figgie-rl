@@ -247,7 +247,7 @@ def benchmark(spec, out, condition, seed):
             spec["exploratory"]["episodes"],
             lineup,
         )
-        report["evaluation_split"] = "exploratory"
+        report["evaluation_split"] = spec.get("benchmark_split", "exploratory")
         save(target, report)
     print("evaluated", condition, seed, flush=True)
 

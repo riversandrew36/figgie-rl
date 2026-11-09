@@ -126,3 +126,50 @@ def test_invalid_settings_are_rejected():
         EnvConfig(quote_rules="other")
     with pytest.raises(ValueError):
         EnvConfig(reward_scale=0.0)
+
+
+def history_env():
+    env = SimpleFiggieEnv(
+        EnvConfig(market_mode="endogenous", include_player_history_features=True),
+        opponent_policies=[Hold(), Hold(), Hold()],
+    )
+    obs, _ = env.reset(seed=1)
+    return env, obs
+
+
+def test_player_history_reports_public_trades_clockwise():
+    env, obs = history_env()
+    assert obs.shape == env.observation_space.shape == (63,)
+    assert (obs[-24:] == 0).all()
+    env.inventories[:] = 2
+    env.initial_inventories[:] = 2
+    env._apply_semantic_action(2, A("quote_ask", suit=1, limit_price=8))
+    env._apply_semantic_action(3, A("buy", suit=1))
+    history = env._player_history(0).reshape(2, 3, 4)
+    assert history[0, 1, 1] == pytest.approx(-0.1)  # seat 2 sold one passively
+    assert history[0, 2, 1] == pytest.approx(0.1)  # seat 3 bought one
+    assert history[1, 1, 1] == 0.0
+    assert history[1, 2, 1] == pytest.approx(0.2)  # seat 3 was the aggressor
+
+
+def test_player_history_excludes_private_opponent_holdings():
+    first, _ = history_env()
+    second, _ = history_env()
+    second.inventories[1] = second.inventories[1][::-1]
+    second.initial_inventories[1] = second.initial_inventories[1][::-1]
+    assert np.array_equal(first._player_history(0), second._player_history(0))
+
+
+def test_frozen_opponent_rebuilds_history_observation(tmp_path):
+    from stable_baselines3 import PPO
+
+    from figgie_rl.train.self_play import FrozenPPOOpponent
+
+    env, _ = history_env()
+    path = tmp_path / "model"
+    PPO("MlpPolicy", env, n_steps=64, batch_size=32, seed=1).save(path)
+    frozen = FrozenPPOOpponent(str(path) + ".zip", 4, env.config)
+    seat = env.opponent_seats[0]
+    assert np.allclose(
+        frozen._obs_from_view(env._opponent_view(seat)), env._build_observation(seat)
+    )
