@@ -62,6 +62,7 @@ class OpponentView:
     market_mode: str = "exogenous"
     bid_available: np.ndarray | None = None
     ask_available: np.ndarray | None = None
+    player_history: np.ndarray | None = None
 
 
 @dataclass(frozen=True)

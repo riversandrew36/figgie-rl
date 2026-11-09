@@ -1,0 +1,36 @@
+# Phase 1 development pilot. Not a held-out test; see configs/phase1_final.yaml when created.
+study_id: phase1_pilot_no_history_20261108
+seeds: [401, 402, 403]
+conditions: [flat_masked, structured_masked]
+stages: 6
+chunk_timesteps: 81920
+workers: 7
+validation: {seed: 4000000, episodes: 200}
+exploratory: {seed: 4100000, episodes: 400}
+lineups:
+  familiar: [hunter, banker, detective]
+  shifted: [banker, detective, bluffer]
+env:
+  quote_rules: official
+  reward_scale: 0.02
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  pot_conserving_settlement: true
+  include_belief_features: true
+  include_goal_belief_features: true
+  include_player_history_features: false
+  reward_mode: wealth_delta
+  gamma: 1.0
+train:
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 1.0
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5

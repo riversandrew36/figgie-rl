@@ -20,7 +20,13 @@ from figgie_rl.agents.baselines import (
     RuleBasedValueTrader,
     policies_from_difficulties,
 )
-from figgie_rl.envs.mechanics import SUITS, deal_round, goal_suit_posterior, settle_round
+from figgie_rl.envs.mechanics import (
+    OFFICIAL_EXPECTED_REMAINDER,
+    SUITS,
+    deal_round,
+    goal_suit_posterior,
+    settle_round,
+)
 
 MARKET_MODES = ("exogenous", "endogenous")
 # official: quotes must be backed when posted, crossing quotes execute, and any
@@ -40,6 +46,9 @@ ENDOGENOUS_LEGACY_ASK_RUNGS = (4, 6, 9)  # $8, $12, $30
 # Shown to scripted bots when nobody is offering or bidding. Not an order.
 MISSING_VIEW_BID = 0.0
 MISSING_VIEW_ASK = 1.0e6
+# Three opponents, four suits, two public signals.
+PLAYER_HISTORY_SIZE = 24
+MAJORITY_TARGET_CARDS = 6.0
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,10 @@ class EnvConfig:
     # Multiplies only the reward returned to the learner. Chips remain the unit
     # of bankrolls, info["reward_breakdown"], and evaluation reports.
     reward_scale: float = 1.0
+    # Public per-opponent history: net cards gained and net aggressive buying by suit.
+    include_player_history_features: bool = False
+    # Teaching aid for the learning ladder: reveals the hidden goal suit to the learner.
+    include_goal_oracle_features: bool = False
 
     def __post_init__(self) -> None:
         od = self.opponent_difficulties
@@ -101,7 +114,7 @@ class EnvConfig:
             raise ValueError(
                 f"market_mode must be one of {MARKET_MODES}, got {self.market_mode!r}"
             )
-        if self.reward_mode not in {"wealth_delta", "terminal_profit", "potential_shaped"}:
+        if self.reward_mode not in {"wealth_delta", "terminal_profit", "potential_shaped", "ev_potential"}:
             raise ValueError(f"Unsupported reward_mode {self.reward_mode!r}")
         if not 0.0 <= self.gamma <= 1.0:
             raise ValueError("gamma must be in [0, 1]")
@@ -131,6 +144,8 @@ def build_policy_observation(
     include_goal_belief_features: bool = False,
     bid_available: np.ndarray | None = None,
     ask_available: np.ndarray | None = None,
+    player_history: np.ndarray | None = None,
+    goal_oracle: np.ndarray | None = None,
 ) -> np.ndarray:
     """Encode the policy observation consistently for every player seat."""
     finite_bids = np.where(np.isfinite(own_bid_quote), own_bid_quote, 0.0)
@@ -160,6 +175,10 @@ def build_policy_observation(
     if bid_available is not None and ask_available is not None:
         parts.append(np.asarray(bid_available, dtype=np.float32))
         parts.append(np.asarray(ask_available, dtype=np.float32))
+    if player_history is not None:
+        parts.append(np.asarray(player_history, dtype=np.float32).reshape(-1))
+    if goal_oracle is not None:
+        parts.append(np.asarray(goal_oracle, dtype=np.float32))
     return np.concatenate(parts).astype(np.float32)
 
 
@@ -221,6 +240,10 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             obs_dim += self.num_suits
         if self.config.market_mode == "endogenous":
             obs_dim += 2 * self.num_suits
+        if self.config.include_player_history_features:
+            obs_dim += PLAYER_HISTORY_SIZE
+        if self.config.include_goal_oracle_features:
+            obs_dim += self.num_suits
         self.observation_space = spaces.Box(
             low=-10.0,
             high=10.0,
@@ -257,6 +280,9 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         self.has_traded = np.zeros(self.num_suits, dtype=bool)
         self.belief_flow = np.zeros(self.num_suits, dtype=np.float64)
         self.cumulative_signed_flow = np.zeros(self.num_suits, dtype=np.float64)
+        self.player_aggressive_flow = np.zeros(
+            (self.config.num_players, self.num_suits), dtype=np.float64
+        )
 
         # Indexed by seat, not by "opponent slot". The learner's seat rotates,
         # and slot = seat - 1 collides once the learner leaves seat 0.
@@ -298,6 +324,10 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         if self.config.market_mode == "endogenous":
             spec["bid_available"] = self.num_suits
             spec["ask_available"] = self.num_suits
+        if self.config.include_player_history_features:
+            spec["player_history"] = PLAYER_HISTORY_SIZE
+        if self.config.include_goal_oracle_features:
+            spec["goal_oracle"] = self.num_suits
         return spec
 
     @staticmethod
@@ -511,6 +541,21 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             return (self.external_bid + self.external_ask) / 2.0
         return np.where(self.has_traded, self.last_trade_price, 0.0)
 
+    def _expected_settlement_wealth(self, player_idx: int) -> float:
+        """Cash plus expected card value, using only this player's initial hand.
+
+        The majority term credits an even share of the expected remainder per
+        goal card up to six cards, the same heuristic as the scripted bots.
+        """
+        holdings = self.inventories[player_idx].astype(np.float64)
+        posterior = goal_suit_posterior(self.initial_inventories[player_idx])
+        majority_share = np.minimum(holdings, MAJORITY_TARGET_CARDS) / MAJORITY_TARGET_CARDS
+        card_values = (
+            self.config.goal_card_value * holdings
+            + OFFICIAL_EXPECTED_REMAINDER * majority_share
+        )
+        return float(self.cash[player_idx] + np.dot(posterior, card_values))
+
     def _mark_to_market(self, player_idx: int) -> float:
         inventory_value = float(np.dot(self.inventories[player_idx], self._reference_prices()))
         return float(self.cash[player_idx] + inventory_value)
@@ -625,6 +670,9 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         self.belief_flow *= self.config.belief_flow_decay
         self.belief_flow[suit] += signed_volume
         self.cumulative_signed_flow[suit] += signed_volume
+        aggressor = buyer_idx if aggressor_side == "buy" else seller_idx
+        if aggressor != -1:
+            self.player_aggressive_flow[aggressor, suit] += signed_volume
 
         if buyer_idx == self.agent_idx or seller_idx == self.agent_idx:
             self.agent_trade_count += 1
@@ -743,6 +791,18 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             )
             return
 
+    def _player_history(self, player_idx: int) -> np.ndarray | None:
+        """Public trade history of each opponent, ordered clockwise from this seat."""
+        if not self.config.include_player_history_features:
+            return None
+        seats = [
+            (player_idx + offset) % self.config.num_players
+            for offset in range(1, self.config.num_players)
+        ]
+        net_cards = (self.inventories[seats] - self.initial_inventories[seats]) / 10.0
+        aggressive = self.player_aggressive_flow[seats] / 5.0
+        return np.concatenate([net_cards.ravel(), aggressive.ravel()]).astype(np.float32)
+
     def _build_observation(self, player_idx: int) -> np.ndarray:
         own_bid_quote, own_ask_quote = self._player_quotes(player_idx)
         obs_bid, obs_ask, bid_available, ask_available, _, _ = self._book_arrays(player_idx)
@@ -763,6 +823,12 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             include_goal_belief_features=self.config.include_goal_belief_features,
             bid_available=bid_available if self.config.market_mode == "endogenous" else None,
             ask_available=ask_available if self.config.market_mode == "endogenous" else None,
+            player_history=self._player_history(player_idx),
+            goal_oracle=(
+                np.eye(self.num_suits, dtype=np.float32)[self.goal_suit_idx]
+                if self.config.include_goal_oracle_features
+                else None
+            ),
         )
 
     def _opponent_view(self, opponent_idx: int) -> OpponentView:
@@ -786,6 +852,7 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             market_mode=self.config.market_mode,
             bid_available=bid_available.copy(),
             ask_available=ask_available.copy(),
+            player_history=self._player_history(opponent_idx),
         )
 
     def reset(
@@ -858,6 +925,11 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             raise ValueError(f"Invalid action {action}")
 
         before_value = self._mark_to_market(self.agent_idx)
+        before_expected = (
+            self._expected_settlement_wealth(self.agent_idx)
+            if self.config.reward_mode == "ev_potential"
+            else 0.0
+        )
         self._age_and_expire_quotes()
 
         for offset in range(self.config.num_players):
@@ -897,6 +969,11 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             },
         }
 
+        after_expected = (
+            self._expected_settlement_wealth(self.agent_idx)
+            if self.config.reward_mode == "ev_potential" and not terminated
+            else 0.0
+        )
         terminal_delta = 0.0
         if terminated:
             terminal_inventories = self.inventories.copy()
@@ -978,6 +1055,10 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             reward = wealth_reward + terminal_delta
         elif self.config.reward_mode == "terminal_profit":
             reward = terminal_profit if terminated else 0.0
+        elif self.config.reward_mode == "ev_potential":
+            shaping = self.config.gamma * after_expected - before_expected
+            reward = (terminal_profit if terminated else 0.0) + shaping
+            info["reward_breakdown"]["potential_shaping_reward"] = float(shaping)
         else:
             initial_wealth = self.config.starting_cash - self.config.ante
             before_potential = before_value - initial_wealth
