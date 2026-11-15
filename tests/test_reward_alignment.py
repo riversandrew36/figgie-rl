@@ -62,3 +62,40 @@ def test_expected_value_potential_telescopes_to_profit_and_credits_good_trades()
     env._apply_semantic_action(seller, OpponentAction("quote_ask", suit=likely, limit_price=1))
     env._apply_semantic_action(seat, OpponentAction("buy", suit=likely))
     assert env._expected_settlement_wealth(seat) > before
+
+
+
+def test_expected_value_potential_uses_shown_goal():
+    from figgie_rl.envs.mechanics import goal_suit_posterior
+
+    def env_for(shown):
+        env = SimpleFiggieEnv(EnvConfig(
+            market_mode="endogenous", reward_mode="ev_potential", gamma=1.0,
+            include_goal_oracle_features=shown,
+            opponent_difficulties=("hunter", "banker", "detective"),
+        ))
+        env.reset(seed=11)
+        return env
+
+    hidden, shown = env_for(False), env_for(True)
+    seat, goal = shown.agent_idx, shown.goal_suit_idx
+    posterior = goal_suit_posterior(hidden.initial_inventories[seat])
+    other = next(s for s in range(4) if s != goal and posterior[s] > 0)
+
+    def gain_from_extra(env, suit):
+        before = env._expected_settlement_wealth(seat)
+        env.inventories[seat, suit] += 1
+        gain = env._expected_settlement_wealth(seat) - before
+        env.inventories[seat, suit] -= 1
+        return gain
+
+    # Once the goal is shown, a non-goal card adds nothing and a goal card adds value.
+    assert gain_from_extra(shown, other) == pytest.approx(0.0)
+    assert gain_from_extra(shown, goal) >= shown.config.goal_card_value
+    # Without the goal shown, the hand posterior still credits the non-goal card.
+    assert gain_from_extra(hidden, other) > 0.0
+    # Opponents keep their own hand-based belief.
+    opponent = shown.opponent_seats[0]
+    assert shown._expected_settlement_wealth(opponent) == pytest.approx(
+        hidden._expected_settlement_wealth(opponent)
+    )

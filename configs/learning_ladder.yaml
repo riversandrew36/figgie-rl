@@ -1,5 +1,6 @@
 # Teaching ladder: each step changes one difficulty. Development data only.
-study_id: learning_ladder_20261108
+# 20261115: ev_potential uses the shown goal on goal-shown steps.
+study_id: learning_ladder_20261115
 seeds: [901, 902, 903]
 workers: 3
 stages: 5

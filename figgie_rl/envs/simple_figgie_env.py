@@ -542,13 +542,19 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         return np.where(self.has_traded, self.last_trade_price, 0.0)
 
     def _expected_settlement_wealth(self, player_idx: int) -> float:
-        """Cash plus expected card value, using only this player's initial hand.
+        """Cash plus expected card value, using what the learner is shown.
 
+        The goal belief comes from this player's initial hand. When the learner
+        is shown the goal suit (``include_goal_oracle_features``), its potential
+        uses that goal instead, so shaping does not contradict its observation.
         The majority term credits an even share of the expected remainder per
         goal card up to six cards, the same heuristic as the scripted bots.
         """
         holdings = self.inventories[player_idx].astype(np.float64)
-        posterior = goal_suit_posterior(self.initial_inventories[player_idx])
+        if self.config.include_goal_oracle_features and player_idx == self.agent_idx:
+            posterior = np.eye(self.num_suits)[self.goal_suit_idx]
+        else:
+            posterior = goal_suit_posterior(self.initial_inventories[player_idx])
         majority_share = np.minimum(holdings, MAJORITY_TARGET_CARDS) / MAJORITY_TARGET_CARDS
         card_values = (
             self.config.goal_card_value * holdings
