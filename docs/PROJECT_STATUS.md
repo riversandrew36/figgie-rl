@@ -30,6 +30,39 @@ against these opponents also fell from about +11 under legacy rules to about zer
 earlier scripted-baseline edges should not be assumed under official rules. The
 browser arena has not changed. This is not a held-out final test.
 
+## Learning ladder step 1 — November 15, 2026
+
+Step 1 (`goal_shown_strong`: goal suit shown plus goal odds, strong lineup) ran with
+seeds 901–903, 204,800 masked PPO steps each, evaluated on seeds 5400000–5400199.
+Mean profit went from −64.34 untrained to −6.26 at the end, which is about Hold
+(−6.63). Policies settled within the first 40,960 steps and made only 0.7–1.9 trades
+per round. The goal-reading diagnostic earned about +79 against a similar lineup, so
+PPO is not using even perfect goal information at this budget. Local outputs are in
+`results/learning_ladder_20261108/step_1_goal_shown_strong/`. This run used
+stable-baselines3 and sb3-contrib 2.9.2.
+
+**Diagnosis.** A simple scripted bot that reads the goal (buy goal cards up to $20, bid
+$10 on the goal, sell other suits into any bid) earned +84.41 ± 3.43 on the same
+seeds, so the headroom is real. The trained policies ignored the goal input: about a
+quarter of their quotes were on the goal suit, which is chance, and most were asks
+at $30–60 that never fill. Observation scales were fine, and the profitable actions
+were usually legal. Buying a goal card was legal on 52% of steps and selling a
+non-goal card on 95%. The cause was the reward: `ev_potential` valued cards with the
+initial-hand posterior even when the goal was shown. On the scripted bot's trades,
+buying a goal card averaged −4.49 shaped reward and was negative 85% of the time. In
+single-seed checks (seed 901), wealth-delta, settlement-only, higher-entropy, larger
+reward scale, and λ = 1 variants all stayed near Hold at 122,880 steps. Shaping with
+the true goal reached +48.75 at 368,640 steps.
+
+**Fix.** On goal-shown steps, `ev_potential` now uses the shown goal for the
+learner's potential. Opponents and goal-hidden steps keep the hand posterior. Rerun
+as `learning_ladder_20261115` with the same seeds and budget, step 1 improved from
+−64.34 untrained to +35.01 (seeds 44.7, 26.7, 33.6), with 4.7 trades per round. It
+was still climbing at the end, from +22.32 at 163,840 steps. This beats Hold (−6.63)
+and the scripted Hunter level seen earlier (about +6). It is still below the
+scripted goal reader (+84), and these are development seeds. Steps 2–5 have not
+run. Local outputs are in `results/learning_ladder_20261115/step_1_goal_shown_strong/`.
+
 ## Short mixed-lineup check and pause — November 8, 2026
 
 Five seeds (801–805) fine-tuned Hunter copies for 491,520 steps against both lineups
