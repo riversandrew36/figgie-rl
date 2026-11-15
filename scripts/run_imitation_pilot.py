@@ -15,7 +15,7 @@ from figgie_rl.train.train_ppo import make_env
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results/figgie_competitiveness_20261106_pilot/imitation"
-CFG = yaml.safe_load((OUT / "config.yaml").read_text())
+CFG = yaml.safe_load((ROOT / "configs/imitation_pilot.yaml").read_text())
 TEACHERS = ("bayesian", "hunter", "banker", "detective", "bluffer")
 
 

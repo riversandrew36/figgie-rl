@@ -1,0 +1,46 @@
+# Competitiveness pilot imitation run (Nov 6, 2026). Outputs go to
+# results/figgie_competitiveness_20261106_pilot/imitation/. The run predates
+# official quote rules, so it pins legacy rules.
+train:
+  total_timesteps: 20480
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 1
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  validation_seed: 1500000
+  n_eval_episodes: 100
+  eval_freq: 20480
+  deterministic_eval: true
+env:
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  goal_card_value: 10.0
+  goal_majority_bonus: 40.0
+  pot_conserving_settlement: true
+  quote_ttl_steps: 8
+  include_belief_features: true
+  include_goal_belief_features: true
+  opponent_difficulties:
+  - hunter
+  - banker
+  - detective
+  external_fill_prob: 0.0
+  external_order_flow_prob: 0.0
+  reward_mode: wealth_delta
+  gamma: 1.0
+  quote_rules: legacy
+run_name: figgie_competitiveness_20261106_wealth_delta_gamma_1
+seed: 47
+evaluation:
+  test_seed: 1502000
+  test_episodes: 1000
+paths:
+  root_artifacts: artifacts
