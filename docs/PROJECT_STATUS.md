@@ -30,6 +30,54 @@ against these opponents also fell from about +11 under legacy rules to about zer
 earlier scripted-baseline edges should not be assumed under official rules. The
 browser arena has not changed. This is not a held-out final test.
 
+## Strong-lineup ladder with carried weights — November 15, 2026
+
+`configs/strong_ladder.yaml` (`strong_ladder_20261115`) keeps Hunter, Banker, and
+Detective throughout and removes one aid per step. Each step starts from the previous
+step's model for the same seed. Removed aids are reported as zeros through the new
+`hidden_observation_blocks` option, so the observation width never changes. Seeds
+901–903 ran 204,800 steps per step, evaluated on seeds 5400000–5400199. On those
+deals, Hold earned −6.63, scripted Hunter +8.40, Bluffer +7.36, and Bayesian +3.41.
+
+| Step | Aids | Start | Final (by seed) | Trades |
+|---|---|---:|---:|---:|
+| 1 | goal and odds | −64.34 | +46.14 (44.0, 46.8, 47.6) | 5.5 |
+| 2 | odds only | −9.40 | −5.63 (−6.3, −5.2, −5.4) | 4.0 |
+| 3 | none | −5.91 | −2.62 (−0.1, −2.3, −5.4) | 7.0 |
+
+Step 1 learned well again. Removing the shown goal dropped the policy straight back
+to about Hold, and odds-only training did not recover. The skill did not carry from
+knowing the goal to inferring it. Step 3 finished about +4 above Hold and traded more
+than earlier no-aid runs. That is the best no-aid PPO result so far, but it is small,
+on development seeds, and still below Bayesian, Hunter, and Bluffer. The next
+candidate is a smoother bridge between steps 1 and 2: show the goal on a shrinking
+share of deals, or blend the shown goal into the odds. A longer step 3 is also worth
+trying, since it was still improving.
+
+## Learning ladder steps 2–5 — November 15, 2026
+
+Steps 2–5 of `learning_ladder_20261115` ran with the same seeds (901–903), 204,800
+steps, and evaluation seeds 5400000–5400199. Each step trains a fresh policy; the
+runner does not carry weights from one step to the next.
+
+| Step | Goal shown | Goal odds | Lineup | Hold | Final profit (by seed) | Trades |
+|---|---|---|---|---:|---:|---:|
+| 1 | yes | yes | strong | −6.63 | +35.01 (44.7, 26.7, 33.6) | 4.7 |
+| 2 | yes | yes | weak | −11.60 | +586.00 (583.9, 549.6, 624.5) | 23.1 |
+| 3 | no | yes | weak | −11.60 | +579.35 (620.4, 529.1, 588.6) | 25.9 |
+| 4 | no | no | weak | −11.60 | +596.56 (560.1, 619.5, 610.0) | 30.0 |
+| 5 | no | no | strong | −6.63 | −7.17 (−11.6, −4.4, −5.5) | 1.8 |
+
+The weak-lineup steps do not measure goal inference. Profit is about the same with
+the goal shown, with only the odds, and with neither. It is reached within 40,960
+steps and is larger than the $350 starting stake, so the policies are exploiting the
+legacy weak/average/tough fixed quote shim noted under Current state. Step 5, the
+real game against price-aware opponents with no help, stays at Hold, as in earlier
+Phase 1 runs. The ladder as designed therefore does not bridge from step 1 to step 5.
+Two likely changes: keep the strong lineup and remove one aid at a time (goal shown,
+then odds only, then nothing), and start each step from the previous step's weights
+so it works as a curriculum. Development seeds only; no held-out test.
+
 ## Learning ladder step 1 — November 15, 2026
 
 Step 1 (`goal_shown_strong`: goal suit shown plus goal odds, strong lineup) ran with

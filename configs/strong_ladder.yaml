@@ -1,0 +1,39 @@
+# Strong-lineup curriculum: one aid removed per step, weights carried forward.
+# Every step keeps the same observation width; removed aids are reported as zeros.
+# Development data only.
+study_id: strong_ladder_20261115
+carry_weights: true
+seeds: [901, 902, 903]
+workers: 3
+stages: 5
+chunk_timesteps: 40960
+evaluation: {seed: 5400000, episodes: 200}
+lineups:
+  strong: [hunter, banker, detective]
+env:
+  quote_rules: official
+  reward_scale: 0.02
+  market_mode: endogenous
+  max_steps: 120
+  num_players: 4
+  starting_cash: 350.0
+  ante: 50.0
+  pot_conserving_settlement: true
+  include_belief_features: true
+  include_player_history_features: true
+  reward_mode: ev_potential
+  gamma: 1.0
+train:
+  n_envs: 4
+  n_steps: 256
+  batch_size: 256
+  learning_rate: 0.0003
+  gamma: 1.0
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+steps:
+  - {number: 1, name: goal_shown, lineup: strong, goal_shown: true, goal_odds: true}
+  - {number: 2, name: odds_only, lineup: strong, goal_shown: true, goal_odds: true, hide: [goal_oracle]}
+  - {number: 3, name: no_aids, lineup: strong, goal_shown: true, goal_odds: true, hide: [goal_oracle, goal_suit_posterior]}

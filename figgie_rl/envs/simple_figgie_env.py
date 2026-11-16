@@ -85,8 +85,14 @@ class EnvConfig:
     include_player_history_features: bool = False
     # Teaching aid for the learning ladder: reveals the hidden goal suit to the learner.
     include_goal_oracle_features: bool = False
+    # Observation blocks (observation_spec names) reported as zeros. Keeps the
+    # observation width fixed while a curriculum removes aids, so weights carry over.
+    hidden_observation_blocks: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "hidden_observation_blocks", tuple(str(x) for x in self.hidden_observation_blocks)
+        )
         od = self.opponent_difficulties
         if od is None:
             tup = None
@@ -250,6 +256,17 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
             shape=(obs_dim,),
             dtype=np.float32,
         )
+        unknown = set(self.config.hidden_observation_blocks) - set(self.observation_spec)
+        if unknown:
+            raise ValueError(
+                f"hidden_observation_blocks {sorted(unknown)} are not in this observation"
+            )
+        self._hidden_slices = []
+        start = 0
+        for name, width in self.observation_spec.items():
+            if name in self.config.hidden_observation_blocks:
+                self._hidden_slices.append(slice(start, start + width))
+            start += width
 
         self.np_random = np.random.default_rng(self.config.seed)
         self._reset_state()
@@ -551,7 +568,7 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         goal card up to six cards, the same heuristic as the scripted bots.
         """
         holdings = self.inventories[player_idx].astype(np.float64)
-        if self.config.include_goal_oracle_features and player_idx == self.agent_idx:
+        if self.goal_shown_to_learner and player_idx == self.agent_idx:
             posterior = np.eye(self.num_suits)[self.goal_suit_idx]
         else:
             posterior = goal_suit_posterior(self.initial_inventories[player_idx])
@@ -809,7 +826,20 @@ class SimpleFiggieEnv(gym.Env[np.ndarray, int]):
         aggressive = self.player_aggressive_flow[seats] / 5.0
         return np.concatenate([net_cards.ravel(), aggressive.ravel()]).astype(np.float32)
 
+    @property
+    def goal_shown_to_learner(self) -> bool:
+        return (
+            self.config.include_goal_oracle_features
+            and "goal_oracle" not in self.config.hidden_observation_blocks
+        )
+
     def _build_observation(self, player_idx: int) -> np.ndarray:
+        obs = self._build_full_observation(player_idx)
+        for hidden in self._hidden_slices:
+            obs[hidden] = 0.0
+        return obs
+
+    def _build_full_observation(self, player_idx: int) -> np.ndarray:
         own_bid_quote, own_ask_quote = self._player_quotes(player_idx)
         obs_bid, obs_ask, bid_available, ask_available, _, _ = self._book_arrays(player_idx)
         return build_policy_observation(

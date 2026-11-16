@@ -1,4 +1,9 @@
-"""Train one rung of the Figgie learning ladder and save its learning curve."""
+"""Train one rung of the Figgie learning ladder and save its learning curve.
+
+With ``carry_weights: true`` each step saves one model per seed and the next
+step starts from those models. Steps then remove aids with ``hide`` (observation
+blocks reported as zeros) so the observation width stays the same.
+"""
 
 from __future__ import annotations
 
@@ -27,13 +32,18 @@ def step_spec(spec: dict, step: dict) -> dict:
     resolved["env"] |= {
         "include_goal_oracle_features": step["goal_shown"],
         "include_goal_belief_features": step["goal_odds"],
+        "hidden_observation_blocks": tuple(step.get("hide", ())),
     }
     resolved["lineups"] = {LINEUP: spec["lineups"][step["lineup"]]}
     return resolved
 
 
-def train_seed(job: tuple[dict, dict, int]) -> list[dict]:
-    spec, step, seed = job
+def step_dir(raw: dict, step: dict) -> Path:
+    return ROOT / "results" / raw["study_id"] / f"step_{step['number']}_{step['name']}"
+
+
+def train_seed(job: tuple[dict, dict, int, Path, Path | None]) -> list[dict]:
+    spec, step, seed, out, start_from = job
     torch.set_num_threads(1)
     settings = {key: value for key, value in spec["train"].items() if key != "n_envs"}
     trial = spec["evaluation"]
@@ -46,7 +56,18 @@ def train_seed(job: tuple[dict, dict, int]) -> list[dict]:
             ]
         )
 
-    model = MaskablePPO("MlpPolicy", vec(0), seed=seed, device="cpu", verbose=0, **settings)
+    if spec.get("carry_weights"):
+        # Fresh deals for each step, so later steps do not replay earlier training seeds.
+        base_vec = vec
+        vec = lambda offset: base_vec(offset + 100000 * step["number"])  # noqa: E731
+    if start_from is None:
+        model = MaskablePPO(
+            "MlpPolicy", vec(0), seed=seed, device="cpu", verbose=0, **settings
+        )
+    else:
+        model = MaskablePPO.load(
+            start_from / f"seed_{seed}.zip", env=vec(0), device="cpu", seed=seed
+        )
     rows = []
     for stage in range(spec["stages"] + 1):
         if stage:
@@ -67,6 +88,8 @@ def train_seed(job: tuple[dict, dict, int]) -> list[dict]:
                 "mean_trades": report["mean_trades"],
             }
         )
+    if spec.get("carry_weights"):
+        model.save(out / f"seed_{seed}.zip")
     return rows
 
 
@@ -78,11 +101,18 @@ def main() -> None:
     raw = yaml.safe_load(Path(args.config).read_text())
     step = next(item for item in raw["steps"] if item["number"] == args.step)
     spec = step_spec(raw, step)
-    out = ROOT / "results" / raw["study_id"] / f"step_{step['number']}_{step['name']}"
+    out = step_dir(raw, step)
     if out.exists():
         raise RuntimeError(f"{out} exists; move it or use a new study_id")
+    start_from = None
+    if raw.get("carry_weights") and step["number"] > 1:
+        previous = next(item for item in raw["steps"] if item["number"] == step["number"] - 1)
+        start_from = step_dir(raw, previous)
+        missing = [s for s in raw["seeds"] if not (start_from / f"seed_{s}.zip").exists()]
+        if missing:
+            raise RuntimeError(f"Run step {previous['number']} first; no models for {missing}")
     out.mkdir(parents=True)
-    jobs = [(spec, step, seed) for seed in raw["seeds"]]
+    jobs = [(spec, step, seed, out, start_from) for seed in raw["seeds"]]
     with ProcessPoolExecutor(raw["workers"]) as pool:
         rows = [row for result in pool.map(train_seed, jobs) for row in result]
     with (out / "curve.csv").open("w", newline="") as handle:
