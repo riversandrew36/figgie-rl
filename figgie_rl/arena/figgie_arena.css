@@ -523,3 +523,4 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
   .intro, .figgie-quick ul { grid-template-columns: 1fr; }
   .intro .lead { font-size: 1rem; }
 }
+#dailyShareField { width: 100%; max-width: 100%; background: var(--surface); color: var(--text); }

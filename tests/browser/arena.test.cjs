@@ -427,3 +427,41 @@ for (const { name, counts, actions, expected } of reconciliationCases) {
     assert.equal(actual.actual, expected[4]);
   });
 }
+
+test('daily seeds are stable and UTC midnight changes the date', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  assert.deepEqual(plain(run(`['2026-11-20','2026-11-21','2027-01-01'].map(dailySeed)`)),
+    [3443902763, 3427125144, 3908099178]);
+  assert.equal(run(`utcDay(new Date('2026-11-20T23:59:00Z'))`), '2026-11-20');
+  assert.equal(run(`utcDay(new Date('2026-11-21T00:00:00Z'))`), '2026-11-21');
+});
+
+test('daily attempt reservation and streak respect prior dates and gaps', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const output = plain(run(`(() => {
+    const days = {'2026-11-18': {firstProfit: 0}, '2026-11-19': {firstProfit: 12}};
+    const date = '2026-11-21';
+    const first = dailyAttempt(days, date, date);
+    days[date] = {firstProfit: null};
+    const second = dailyAttempt(days, date, date);
+    const old = dailyAttempt(days, '2026-11-20', date);
+    const gap = dailyStreak(days, date);
+    days[date].firstProfit = -2;
+    return {first, second, old, gap, newRun: dailyStreak(days, date)};
+  })()`));
+  assert.deepEqual(output, {first:true, second:false, old:false,
+    gap:{current:0,best:2}, newRun:{current:1,best:2}});
+});
+
+test('daily share text ignores hidden fields', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const shared = run(`dailyShareText({date:"2026-11-21", profit:42, practice:false, called:true,
+    lockedTime:"0:24", edges:[5,-2,0], streak:1, goalSuit:"Diamonds", inventory:[1,2,3,4]})`);
+  assert.match(shared, /goal called at 0:24/);
+  assert.match(shared, /🟩🟥⬜/);
+  assert.match(shared, /\?daily=2026-11-21/);
+  assert.doesNotMatch(shared, /Diamonds|1,2,3,4/);
+});

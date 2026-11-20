@@ -193,6 +193,15 @@
       <p class="small attribution">Learn from the <a href="https://www.figgie.com/">official Figgie game</a> and <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Jane Street’s gameplay video</a>. This independent educational implementation is not affiliated with or endorsed by Jane Street.</p>
     </section>
 
+    <section id="dailyResult" class="panel teaching" aria-live="polite" hidden>
+      <h2 id="dailyResultTitle">Daily result</h2>
+      <p id="dailyResultSummary"></p>
+      <p id="dailyResultPrediction"></p>
+      <p id="dailyResultStreak"></p>
+      <button id="dailyShare" type="button">Share result</button>
+      <p id="dailyShareStatus"></p>
+      <textarea id="dailyShareField" aria-label="Daily result text" rows="5" readonly hidden></textarea>
+    </section>
     <section id="roundCoach" class="panel teaching" hidden aria-labelledby="coachTitle">
       <h2 id="coachTitle">Review your round</h2>
       <p>This review uses hindsight. Each trade is undone on its own. Settlement value isolates the payout change, and edge includes the price you paid or received.</p>
