@@ -169,6 +169,7 @@ test('players mode bot trade rate meets the 1–50 seed target at 60 seconds', (
         }
         game.step(true);
       }
+      if (game.roundLog.length < 3) throw new Error("fewer than three trades for seed " + seed);
       trades += game.roundLog.length;
       game.players.forEach((player, idx) => { perBot[idx] += player.trades; });
     }
