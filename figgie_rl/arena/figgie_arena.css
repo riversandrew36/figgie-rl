@@ -469,3 +469,8 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .teaching-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .tutorial-target { outline: 2px solid var(--accent); outline-offset: 3px; }
 #tutorialFinish a { display: inline-flex; align-items: center; min-height: 44px; }
+.lesson-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 0.75rem; }
+.lesson-cards article { border: 1px solid var(--line); border-radius: 10px; padding: 0.8rem; }
+#lessonLink { width: 100%; }
+#tutorialCheckLabel { display: block; margin: 0 0 0.75rem; }
+#tutorialCheck { display: block; max-width: 100%; margin-top: 0.35rem; }

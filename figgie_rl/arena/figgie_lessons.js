@@ -15,6 +15,29 @@ function estimateRead(startingHand, hand, trades, seat, cardValue = 10) {
   });
 }
 
+const BOT_LESSONS = {
+  hunter: {
+    seed: 5, opponents: ["Hunter", "Banker", "Detective"], condition: "Predict the goal before settlement.",
+    brief: "Hunter spends early on the suit it rates highest from its hand. Notice which offers it lifts, then compare that activity with your own hand. You can sell into strong demand when the price is worth more to you than the card.",
+    event: "prediction",
+  },
+  banker: {
+    seed: 1, opponents: ["Hunter", "Banker", "Detective"], condition: "Finish with a profit above $0.",
+    brief: "Banker rotates between bids and offers and adjusts its prices as its holdings change. Watch both sides before trading. If you disagree with its valuation, a resting quote can buy a cheap card or give you a good exit.",
+    event: "profit",
+  },
+  detective: {
+    seed: 19, opponents: ["Hunter", "Banker", "Detective"], condition: "Predict the goal before settlement.",
+    brief: "Detective waits for aggressive buys, then puts more weight on the suits buyers are chasing. Compare early and late trades. A quote from Detective can give you a buyer when your own hand suggests the crowd is paying too much.",
+    event: "prediction",
+  },
+  bluffer: {
+    seed: 4, opponents: ["Hunter", "Banker", "Bluffer"], condition: "Sell at least one card to Bluffer.",
+    brief: "Bluffer buys a low-belief suit early to make demand look stronger. Check the buyer on the tape before following a price move. You can offer cards from a suit you rate low and let Bluffer pay for them.",
+    event: "sell",
+  },
+};
+
 const arenaTeaching = (() => {
   const read = document.getElementById("yourRead");
   const toggle = document.getElementById("readToggle");
@@ -31,6 +54,7 @@ const arenaTeaching = (() => {
   toggle.addEventListener("toggle", () => save("read", toggle.open));
 
   function render() {
+    renderPrediction();
     const seat = humanPlayerIndex();
     read.hidden = !isPlayMode();
     if (seat < 0 || !isPlayMode()) {
@@ -62,6 +86,12 @@ const arenaTeaching = (() => {
     "Watch the tape. Hunter just bought Clubs aggressively. Compare the tape-adjusted odds to your hand odds.",
     "Each goal card pays $10. Players tied for the most goal cards split what remains. See Your settlement for your result.",
   ];
+  const checks = {
+    0: { question: "Which suit scores?", answers: ["The 12-card suit", "Its same-color partner"], correct: 1 },
+    1: { question: "What goes into hand odds?", answers: ["Starting cards", "Current bids and offers"], correct: 0 },
+    3: { question: "What price did the crossing trade use?", answers: ["The $7 offer", "The $8 resting bid"], correct: 1 },
+    5: { question: "Which suit just gained tape-adjusted odds?", answers: ["Clubs", "Diamonds"], correct: 0 },
+  };
   const deal = [[3,3,2,2], [2,4,2,2], [1,2,3,4], [2,3,3,2]];
   let step = -1;
   let highlight;
@@ -79,10 +109,17 @@ const arenaTeaching = (() => {
     highlight?.classList.remove("tutorial-target");
     byId("tutorialInstruction").textContent = `Step ${step + 1} of 7. ${steps[step]}`;
     byId("tutorialHint").textContent = "";
+    const check = checks[step];
+    byId("tutorialCheckLabel").hidden = !check;
+    if (check) {
+      byId("tutorialQuestion").textContent = check.question;
+      byId("tutorialCheck").innerHTML = '<option value="">Choose an answer</option>' +
+        check.answers.map((answer, index) => `<option value="${index}">${answer}</option>`).join("");
+    }
     byId("tutorialBack").disabled = step === 0;
     byId("tutorialNext").hidden = [2, 4, 6].includes(step);
     byId("tutorialFinish").hidden = step !== 6;
-    renderArena();
+    globalThis.render();
     const targets = ["#marketGrid", "#yourRead", '[data-human-action="quote_bid"][data-suit="0"]',
       "#marketGrid", '[data-human-action="quote_ask"][data-suit="2"]', "#tapeItems", "#humanPayout"];
     highlight = document.querySelector?.(targets[step]);
@@ -92,10 +129,8 @@ const arenaTeaching = (() => {
       selectedSuitIdx = step === 2 ? 0 : 2;
       selectedQuoteSide = step === 2 ? "quote_bid" : "quote_ask";
     }
-    (step === 2 || step === 4 ? highlight : byId("tutorialTitle"))?.focus();
+    (check ? byId("tutorialCheck") : step === 2 || step === 4 ? highlight : byId("tutorialTitle"))?.focus();
   }
-
-  function renderArena() { globalThis.render(); }
 
   function crossingBid() {
     game.applyAction(2, { kind: "quote_bid", suit: 1, price: 5 });
@@ -184,6 +219,11 @@ const arenaTeaching = (() => {
 
   function nextStep() {
     if (step < 0 || [2, 4, 6].includes(step)) return;
+    if (checks[step] && byId("tutorialCheck").value !== String(checks[step].correct)) {
+      byId("tutorialHint").textContent = "Take another look at the highlighted area and try again.";
+      byId("tutorialCheck").focus();
+      return;
+    }
     step += 1;
     if (step === 6) {
       game.stop(true);
@@ -207,10 +247,19 @@ const arenaTeaching = (() => {
   byId("tutorialNext").addEventListener("click", nextStep);
   byId("tutorialSkip").addEventListener("click", stopTutorial);
   byId("tutorialPlay").addEventListener("click", startRealRound);
-  byId("tutorialLesson").addEventListener("click", stopTutorial);
+  byId("tutorialLesson").addEventListener("click", () => {
+    stopTutorial();
+    byId("lessonTitle").focus();
+  });
   document.addEventListener?.("keydown", (event) => {
     if (step < 0) return;
-    if (event.key === "Escape" || (event.key === "Enter" && event.target === byId("tutorialTitle"))) {
+    if (event.target === byId("tutorialCheck") && /^[12]$/.test(event.key)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      byId("tutorialCheck").value = String(Number(event.key) - 1);
+      return;
+    }
+    if (event.key === "Escape" || (event.key === "Enter" && [byId("tutorialTitle"), byId("tutorialCheck")].includes(event.target))) {
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.key === "Escape") stopTutorial();
@@ -218,8 +267,121 @@ const arenaTeaching = (() => {
     }
   }, true);
 
-  return { render, load, save, beforeAction, afterAction, stopTutorial,
-    roundStarted() {}, roundEnded() {} };
+  const prediction = byId("predictionPick");
+  const predictionResult = byId("predictionResult");
+  const lessonStatus = byId("lessonStatus");
+  const lessonCards = byId("lessonCards");
+  const predictionStats = load("predictions", { correct: 0, total: 0 });
+  const progress = load("progress", {});
+  let nextLesson = null;
+  let activeLesson = null;
+
+  function renderPrediction() {
+    byId("goalPrediction").hidden = !isPlayMode() || step >= 0;
+    prediction.disabled = !game.running || step >= 0;
+    byId("predictionStats").textContent = `Goal predictions: ${predictionStats.correct} correct out of ${predictionStats.total} made.`;
+  }
+
+  function renderLessons() {
+    lessonCards.innerHTML = Object.entries(BOT_LESSONS).map(([id, lesson]) => {
+      const name = id[0].toUpperCase() + id.slice(1);
+      const record = progress[id];
+      return `<article id="lesson-${id}">
+        <h3>${name}</h3><p>${lesson.brief}</p><p><strong>Pass:</strong> ${lesson.condition}</p>
+        <p class="small">${record ? `${record.passed ? "Passed" : "Tried"} · Best profit $${Number(record.bestProfit).toFixed(2)}` : "Ready to try"}</p>
+        <div class="teaching-actions">
+          <button data-lesson="${id}" type="button">Start ${name} lesson</button>
+          <button data-share-lesson="${id}" class="reset-btn" type="button">Share ${name} lesson</button>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function prepareLesson(id) {
+    const lesson = BOT_LESSONS[id];
+    if (step >= 0) stopTutorial();
+    else if (game.running) playBtn.click();
+    playModeInput.checked = true;
+    watchModeInput.checked = false;
+    seedInput.value = lesson.seed;
+    durationSelect.value = "60000";
+    for (const name of BOT_NAMES) byId("opponent" + name).checked = lesson.opponents.includes(name);
+    refreshModePreview();
+    lessonStatus.textContent = `Lesson ready. ${lesson.condition}`;
+  }
+
+  function startLesson(id) {
+    prepareLesson(id);
+    nextLesson = id;
+    playBtn.click();
+  }
+
+  async function shareLesson(id) {
+    const url = new URL(window.location.href);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("lesson", id);
+    const field = byId("lessonLink");
+    field.value = url.href;
+    field.hidden = false;
+    try {
+      await navigator.clipboard.writeText(url.href);
+      lessonStatus.textContent = "Lesson link copied.";
+    } catch {
+      lessonStatus.textContent = "Select and copy this lesson link.";
+      field.focus();
+      field.select();
+    }
+  }
+
+  function roundStarted() {
+    activeLesson = nextLesson;
+    nextLesson = null;
+    prediction.value = "";
+    predictionResult.textContent = "";
+  }
+
+  function roundEnded() {
+    const seat = humanPlayerIndex();
+    if (seat < 0 || step >= 0) return;
+    const picked = prediction.value !== "";
+    const correct = picked && Number(prediction.value) === game.goalSuitIdx;
+    if (picked) {
+      predictionStats.total += 1;
+      if (correct) predictionStats.correct += 1;
+      save("predictions", predictionStats);
+      predictionResult.textContent = `You picked ${SUITS[Number(prediction.value)].name}. ${correct ? "Correct!" : `The goal was ${SUITS[game.goalSuitIdx].name}.`}`;
+    }
+    if (!activeLesson) return;
+    const lesson = BOT_LESSONS[activeLesson];
+    const profit = payoutBreakdown(game, game.players[seat]).netProfit;
+    const soldToBluffer = game.roundLog.some((trade) =>
+      trade.sellerIdx === seat && game.players[trade.buyerIdx].name === "Bluffer");
+    const passed = lesson.event === "prediction" ? correct : lesson.event === "profit" ? profit > 0 : soldToBluffer;
+    const previous = progress[activeLesson];
+    progress[activeLesson] = {
+      passed: passed || Boolean(previous?.passed),
+      bestProfit: previous ? Math.max(profit, previous.bestProfit) : profit,
+    };
+    save("progress", progress);
+    lessonStatus.textContent = passed ? "Lesson passed." : `Try again. ${lesson.condition}`;
+    activeLesson = null;
+    renderLessons();
+  }
+
+  lessonCards.addEventListener("click", (event) => {
+    const { lesson, shareLesson: share } = event.target.dataset;
+    if (Object.hasOwn(BOT_LESSONS, lesson)) startLesson(lesson);
+    if (Object.hasOwn(BOT_LESSONS, share)) shareLesson(share);
+  });
+  renderLessons();
+  const shared = new URL(window.location.href).searchParams.get("lesson");
+  if (Object.hasOwn(BOT_LESSONS, shared)) {
+    prepareLesson(shared);
+    byId("lesson-" + shared)?.scrollIntoView();
+  }
+
+  return { render, beforeAction, afterAction, stopTutorial, roundStarted, roundEnded };
 })();
 globalThis.figgieTeaching = arenaTeaching;
 arenaTeaching.render();

@@ -16,7 +16,7 @@ def test_pages_contains_only_browser_assets(tmp_path: Path) -> None:
     build = runpy.run_path(str(ROOT / "scripts" / "build_pages.py"))["build"]
     build(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == {
-        "index.html", "figgie_arena.css", "figgie_arena.js",
+        "index.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js",
     }
     html = (tmp_path / "index.html").read_text()
     assert 'href="figgie_arena.css"' in html

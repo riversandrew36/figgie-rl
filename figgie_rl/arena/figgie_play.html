@@ -97,6 +97,10 @@
     <section id="tutorial" class="panel teaching" hidden aria-labelledby="tutorialTitle">
       <h2 id="tutorialTitle" tabindex="-1">Guided round</h2>
       <div aria-live="polite"><p id="tutorialInstruction"></p><p id="tutorialHint"></p></div>
+      <label id="tutorialCheckLabel" hidden><span id="tutorialQuestion"></span>
+        <select id="tutorialCheck" aria-describedby="tutorialKeys"></select>
+        <small id="tutorialKeys">Keyboard: choose 1 or 2, then press Enter.</small>
+      </label>
       <div class="teaching-actions">
         <button id="tutorialBack" type="button">Back</button>
         <button id="tutorialNext" type="button">Continue</button>
@@ -132,6 +136,15 @@
       </section>
     </section>
 
+    <section id="goalPrediction" class="panel teaching" hidden>
+      <label for="predictionPick"><strong>Which suit is the goal?</strong></label>
+      <select id="predictionPick" disabled>
+        <option value="">No prediction</option>
+        <option value="0">Spades</option><option value="1">Clubs</option>
+        <option value="2">Hearts</option><option value="3">Diamonds</option>
+      </select>
+      <p id="predictionResult" class="small" aria-live="polite"></p>
+    </section>
     <section id="yourRead" class="panel teaching" hidden>
       <h2 class="section-title">Your read</h2>
       <details id="readToggle" open>
@@ -186,12 +199,20 @@
       <ol id="tradeHighlights"></ol>
     </section>
 
+    <section id="lessons" class="panel teaching" aria-labelledby="lessonTitle">
+      <h2 class="section-title" id="lessonTitle" tabindex="-1">Lessons</h2>
+      <p>Spend one minute trading with a scripted opponent. Each lesson starts with a fixed deal.</p>
+      <div id="lessonCards" class="lesson-cards"></div>
+      <p id="lessonStatus" role="status" class="small"></p>
+      <input id="lessonLink" aria-label="Lesson link" readonly hidden />
+    </section>
     <section class="tracker panel">
       <h2 class="section-title">Your local baseline tracker</h2>
       <p class="small">Descriptive results from rounds in this browser, not an RL benchmark. Bot ratings and rounds stay on this device.</p>
       <div class="tracker-controls">
         <button id="resetStrengthBtn" class="reset-btn" type="button">Reset Strength Stats</button>
       </div>
+      <p id="predictionStats" class="small"></p>
       <div class="tracker-meta" id="trackerMeta">Settled rounds: 0</div>
       <table>
         <caption class="sr-only">Historical bot strength rankings</caption>
