@@ -390,9 +390,11 @@ test('daily deal records one scored result, shares it, then becomes practice', a
   }));
   await page.locator('#playDaily').click();
   expect(await page.evaluate(() => game.seed)).toBe(3427125144);
+  await expect(page.locator("#seedInput")).toBeHidden();
+  await expect(page.locator("#dailySeedLabel")).toBeVisible();
   await completeRound(page);
   await expect(page.locator('#dailyResultTitle')).toContainText('Scored result');
-  await expect(page.locator('#dailyResultStreak')).toContainText('Current streak 1');
+  await expect(page.locator('#dailyResultStreak')).toContainText('Current: 1-day streak');
   await page.locator('#dailyShare').click();
   await expect(page.locator('#dailyShareField')).toBeFocused();
   await expect(page.locator('#dailyShareField')).toHaveValue(/\?daily=2026-11-21/);
