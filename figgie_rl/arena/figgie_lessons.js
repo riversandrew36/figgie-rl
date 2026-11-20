@@ -15,26 +15,64 @@ function estimateRead(startingHand, hand, trades, seat, cardValue = 10) {
   });
 }
 
+function goalPayout(round, counts, seat) {
+  const majority = Math.max(...counts);
+  const pot = round.antePot - counts.reduce((total, count) => total + count, 0) * round.goalCardValue;
+  return counts[seat] * round.goalCardValue
+    + (counts[seat] === majority ? pot / counts.filter((count) => count === majority).length : 0);
+}
+
+// Undo one transfer while keeping the rest of the final position fixed.
+function tradeHindsight(round, seat) {
+  const counts = round.players.map((player) => player.inventory[round.goalSuitIdx]);
+  const payout = goalPayout(round, counts, seat);
+  return round.roundLog.filter((trade) => trade.buyerIdx === seat || trade.sellerIdx === seat).map((trade) => {
+    const buy = trade.buyerIdx === seat;
+    const without = [...counts];
+    if (trade.suit === round.goalSuitIdx) {
+      without[trade.buyerIdx] -= 1;
+      without[trade.sellerIdx] += 1;
+    }
+    const payoutDelta = payout - goalPayout(round, without, seat);
+    const value = buy ? payoutDelta : -payoutDelta;
+    return { ...trade, buy, value, edge: buy ? value - trade.price : trade.price - value };
+  });
+}
+
+function lessonPassed(id, round, seat, prediction, lockedTick) {
+  switch (id) {
+    case "hunter":
+      return tradeHindsight(round, seat).some((trade) =>
+        !trade.buy && round.players[trade.buyerIdx].name === "Hunter" && trade.edge > 0);
+    case "bluffer":
+      return round.roundLog.some((trade) => trade.sellerIdx === seat
+        && trade.suit !== round.goalSuitIdx && round.players[trade.buyerIdx].name === "Bluffer");
+    case "detective":
+      return prediction === round.goalSuitIdx && lockedTick !== null
+        && lockedTick * round.tickMs < round.durationMs / 2;
+    case "banker":
+      return round.players[seat].cash > round.startingCash;
+    default:
+      return false;
+  }
+}
+
 const BOT_LESSONS = {
   hunter: {
-    seed: 5, opponents: ["Hunter", "Banker", "Detective"], condition: "Predict the goal before settlement.",
+    seed: 5, opponents: ["Hunter", "Banker", "Detective"], condition: "Sell Hunter a card for more than keeping it would have paid at settlement.",
     brief: "Hunter spends early on the suit it rates highest from its hand. Notice which offers it lifts, then compare that activity with your own hand. You can sell into strong demand when the price is worth more to you than the card.",
-    event: "prediction",
   },
   banker: {
     seed: 1, opponents: ["Hunter", "Banker", "Detective"], condition: "Finish with a profit above $0.",
     brief: "Banker rotates between bids and offers and adjusts its prices as its holdings change. Watch both sides before trading. If you disagree with its valuation, a resting quote can buy a cheap card or give you a good exit.",
-    event: "profit",
   },
   detective: {
-    seed: 19, opponents: ["Hunter", "Banker", "Detective"], condition: "Predict the goal before settlement.",
+    seed: 19, opponents: ["Hunter", "Banker", "Detective"], condition: "Lock in a correct goal prediction before halftime.",
     brief: "Detective waits for aggressive buys, then puts more weight on the suits buyers are chasing. Compare early and late trades. A quote from Detective can give you a buyer when your own hand suggests the crowd is paying too much.",
-    event: "prediction",
   },
   bluffer: {
-    seed: 4, opponents: ["Hunter", "Banker", "Bluffer"], condition: "Sell at least one card to Bluffer.",
+    seed: 4, opponents: ["Hunter", "Banker", "Bluffer"], condition: "Sell Bluffer a card outside the goal suit.",
     brief: "Bluffer buys a low-belief suit early to make demand look stronger. Check the buyer on the tape before following a price move. You can offer cards from a suit you rate low and let Bluffer pay for them.",
-    event: "sell",
   },
 };
 
@@ -66,10 +104,15 @@ const arenaTeaching = (() => {
     const percent = (value) => (100 * value).toFixed(1) + "%";
     const markup = data.map(({ handOdds, tapeOdds, value, flow }, suit) => {
       const direction = Math.abs(tapeOdds - handOdds) < 1e-9 ? "unchanged" : tapeOdds > handOdds ? "up" : "down";
-      const evidence = flow ? `others initiated ${Math.abs(flow)} more ${flow > 0 ? "buys than sells" : "sells than buys"} in this suit` : "net aggressive buying here is zero";
+      const count = Math.abs(flow);
+      const verb = flow > 0 ? "buy" : "sell";
+      const evidence = direction === "down" && data.some((other) => other.flow > flow && other.flow > 0)
+        ? "other suits drew the buying"
+        : flow ? `others initiated ${count} more ${verb}${count === 1 ? "" : "s"} than ${flow > 0 ? "sells" : "buys"}`
+          : "net aggressive buying here is zero";
       return `<li><strong>${SUITS[suit].name} ${SUITS[suit].symbol}</strong>
         <span>Hand odds ${percent(handOdds)} · Tape-adjusted odds ${percent(tapeOdds)} · Rough value ≈ $${value.toFixed(2)}</span>
-        <small>Odds ${direction}. ${evidence.charAt(0).toUpperCase() + evidence.slice(1)}.</small></li>`;
+        <small>Odds ${direction}: ${evidence}.</small></li>`;
     }).join("");
     if (rows.innerHTML !== markup) rows.innerHTML = markup;
   }
@@ -81,8 +124,8 @@ const arenaTeaching = (() => {
     "Find your ten cards on the Market Board. One suit has 12 cards. Its same-color partner scores, but you do not know which suit has 12.",
     "Open Your read and compare the four hand odds. Those estimates use your starting cards.",
     "Post an $8 bid for Spades. A bid needs enough cash to pay the full quoted price.",
-    "Hunter offered below your bid. The trade printed at your resting $8 bid, and every other quote cleared.",
-    "Hearts looks less likely from this hand. Offer a Heart at $8 to turn a card into cash. Banker will lift your offer.",
+    "Hunter posted an offer below your bid. Check the trade price on the board.",
+    "The crossing traded at your resting $8 bid and cleared every quote. Hearts looks less likely from this hand. Offer a Heart at $8 to turn a card into cash. Banker will lift your offer.",
     "Watch the tape. Hunter just bought Clubs aggressively. Compare the tape-adjusted odds to your hand odds.",
     "Each goal card pays $10. Players tied for the most goal cards split what remains. See Your settlement for your result.",
   ];
@@ -268,18 +311,22 @@ const arenaTeaching = (() => {
   }, true);
 
   const prediction = byId("predictionPick");
+  const lock = byId("predictionLock");
+  let lockedTick = null;
   const predictionResult = byId("predictionResult");
   const lessonStatus = byId("lessonStatus");
   const lessonCards = byId("lessonCards");
   const predictionStats = load("predictions", { correct: 0, total: 0 });
-  const progress = load("progress", {});
+  const progress = load("skillProgress", {});
   let nextLesson = null;
   let activeLesson = null;
 
   function renderPrediction() {
     byId("goalPrediction").hidden = !isPlayMode() || step >= 0;
-    prediction.disabled = !game.running || step >= 0;
-    byId("predictionStats").textContent = `Goal predictions: ${predictionStats.correct} correct out of ${predictionStats.total} made.`;
+    prediction.disabled = !game.running || step >= 0 || lockedTick !== null;
+    lock.disabled = prediction.disabled || prediction.value === "";
+    const early = predictionStats.correct ? Math.round(100 * (predictionStats.earlyCorrect || 0) / predictionStats.correct) : 0;
+    byId("predictionStats").textContent = `Goal predictions: ${predictionStats.correct} correct out of ${predictionStats.total} made. ${early}% of correct picks locked before halftime.`;
   }
 
   function renderLessons() {
@@ -334,7 +381,16 @@ const arenaTeaching = (() => {
     }
   }
 
+  prediction.addEventListener("change", renderPrediction);
+  lock.addEventListener("click", () => {
+    if (lock.disabled) return;
+    lockedTick = game.tick;
+    predictionResult.textContent = `Locked in ${SUITS[Number(prediction.value)].name}.`;
+    renderPrediction();
+  });
+
   function roundStarted() {
+    lockedTick = null;
     activeLesson = nextLesson;
     nextLesson = null;
     prediction.value = "";
@@ -348,22 +404,25 @@ const arenaTeaching = (() => {
     const correct = picked && Number(prediction.value) === game.goalSuitIdx;
     if (picked) {
       predictionStats.total += 1;
-      if (correct) predictionStats.correct += 1;
+      if (correct) {
+        predictionStats.correct += 1;
+        if (lockedTick !== null && lockedTick * game.tickMs < game.durationMs / 2) {
+          predictionStats.earlyCorrect = (predictionStats.earlyCorrect || 0) + 1;
+        }
+      }
       save("predictions", predictionStats);
       predictionResult.textContent = `You picked ${SUITS[Number(prediction.value)].name}. ${correct ? "Correct!" : `The goal was ${SUITS[game.goalSuitIdx].name}.`}`;
     }
     if (!activeLesson) return;
     const lesson = BOT_LESSONS[activeLesson];
     const profit = payoutBreakdown(game, game.players[seat]).netProfit;
-    const soldToBluffer = game.roundLog.some((trade) =>
-      trade.sellerIdx === seat && game.players[trade.buyerIdx].name === "Bluffer");
-    const passed = lesson.event === "prediction" ? correct : lesson.event === "profit" ? profit > 0 : soldToBluffer;
+    const passed = lessonPassed(activeLesson, game, seat, picked ? Number(prediction.value) : null, lockedTick);
     const previous = progress[activeLesson];
     progress[activeLesson] = {
       passed: passed || Boolean(previous?.passed),
       bestProfit: previous ? Math.max(profit, previous.bestProfit) : profit,
     };
-    save("progress", progress);
+    save("skillProgress", progress);
     lessonStatus.textContent = passed ? "Lesson passed." : `Try again. ${lesson.condition}`;
     activeLesson = null;
     renderLessons();
