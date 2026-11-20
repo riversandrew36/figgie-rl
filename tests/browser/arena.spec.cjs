@@ -248,7 +248,7 @@ test('guided round works using only the keyboard with storage blocked', async ({
     get() { throw new DOMException('Storage blocked', 'SecurityError'); },
   }));
   await page.goto('/figgie-rl/');
-  for (let tab = 0; tab < 4; tab += 1) await page.keyboard.press('Tab');
+  for (let tab = 0; tab < 3; tab += 1) await page.keyboard.press('Tab');
   await expect(page.locator('#learnBasics')).toBeFocused();
   await page.keyboard.press('Enter');
   await tutorialStep(page, 1);
