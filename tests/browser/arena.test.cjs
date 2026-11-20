@@ -177,3 +177,46 @@ test('players mode bot trade rate meets the 1–50 seed target at 60 seconds', (
   assert.ok(result.average >= 3, `average trades were ${result.average}`);
   assert.ok(result.perBot.every((trades) => trades > 0), `bot totals were ${result.perBot}`);
 });
+
+test('official Python rule fixtures replay after every action and at settlement', () => {
+  const fixtures = JSON.parse(fs.readFileSync('tests/browser/fixtures/official_rules.json', 'utf8'));
+  const { run } = load();
+  const snapshot = () => plain(run(`(() => ({
+    best: [0,1,2,3].map((suit) => {
+      const bid = game.bestBid(suit, -1); const ask = game.bestAsk(suit, -1);
+      return {bid:{price:bid.buyer === null ? null : bid.price, owner:bid.buyer},
+        ask:{price:ask.seller === null ? null : ask.price, owner:ask.seller}};
+    }),
+    inventories: game.players.map((p) => [...p.inventory]),
+    cash: game.players.map((p) => p.cash),
+    lastTradePrice: [...game.lastTradePrice],
+    trades: game.roundLog.map((t) => ({buyerIdx:t.buyerIdx,sellerIdx:t.sellerIdx,
+      suit:t.suit,price:t.price,aggressorSide:t.aggressorSide})),
+  }))()`));
+  for (const scenario of fixtures.scenarios) {
+    run(`game.reset(30000, 7, {marketMode:'players'});`);
+    run(`game.loadDeal(${JSON.stringify({
+      inventories: scenario.inventories,
+      goalSuitIdx: scenario.goalSuitIdx,
+      startingCash: scenario.startingCash,
+      ante: scenario.ante,
+      marketMode: 'players',
+    })});`);
+    scenario.steps.forEach((step, idx) => {
+      run(`game.applyAction(${step.player}, ${JSON.stringify(step.action)});`);
+      assert.deepEqual(snapshot(), scenario.expectedAfterSteps[idx], `${scenario.name} after step ${idx + 1}`);
+    });
+    run('game.settleRound(); game.revealGoal = true;');
+    const settlement = plain(run(`(() => {
+      const goalCounts = game.players.map((p) => p.inventory[game.goalSuitIdx]);
+      return {goalSuitIdx:game.goalSuitIdx, goalCardCounts:goalCounts,
+        goalCardPayouts:game.players.map((p) => p.goalCardPayout),
+        majorityPool:game.majorityPaid,
+        majorityShares:game.players.map((p) => p.majorityPayout),
+        winners:game.winnerIdxs,
+        finalBankrolls:game.players.map((p) => p.cash),
+        profitFromStart:game.players.map((p) => p.cash - game.startingCash)};
+    })()`));
+    assert.deepEqual(settlement, scenario.expectedSettlement, `${scenario.name} settlement`);
+  }
+});
