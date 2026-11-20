@@ -72,6 +72,14 @@ chip-sized value errors dominate PPO's shared gradient clipping, so
    - Open `http://127.0.0.1:8000/figgie_play.html`
    - The page, stylesheet, and scripts are read from the installed `figgie_rl.arena` package. Opening `figgie_rl/arena/figgie_play.html` directly also works, because the CSS and JS sit beside it.
 
+## Play the daily deal
+
+Choose **Play now** for a one-minute game or **Play daily deal** for the deal
+shared by all players that UTC day. Your first attempt is scored locally and
+later attempts are practice. The dated result link stays playable after the
+day ends. Result sharing includes profit, prediction timing, and trade edges
+without exposing your hand or the goal suit.
+
 ## Learn while playing
 
 **Learn the basics** walks through a fixed practice deal, a resting-price fill,
