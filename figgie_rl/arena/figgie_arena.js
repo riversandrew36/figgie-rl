@@ -1,7 +1,11 @@
 // Bump when simulation mechanics or seeded execution change.
-const SIMULATION_VERSION = "1.0.0";
-const EXPORT_SCHEMA_VERSION = 2;
-const SUPPORTED_DURATIONS = [30000, 60000, 90000];
+const SIMULATION_VERSION = "2.0.0";
+const EXPORT_SCHEMA_VERSION = 3;
+const SUPPORTED_DURATIONS = [30000, 60000, 90000, 240000];
+const MARKET_MODES = ["players", "classic"];
+const PRICE_FLOOR = 1;
+const PRICE_CAP = 60;
+const EXPECTED_POT_REMAINDER = 320 / 3;
 
 function normalizeScenario(seed, durationMs) {
   return {
@@ -13,7 +17,16 @@ function normalizeScenario(seed, durationMs) {
 
 function scenarioFromUrl(url) {
   const params = new URL(url).searchParams;
-  return normalizeScenario(params.get("seed"), params.get("duration"));
+  const scenario = normalizeScenario(params.get("seed"), params.get("duration"));
+  const hasScenario = params.has("seed") || params.has("duration");
+  const requestedMode = params.get("market");
+  const oldVersion = params.has("version") && params.get("version") !== SIMULATION_VERSION;
+  const legacyLink = hasScenario && (!requestedMode || oldVersion || !params.has("version"));
+  return {
+    ...scenario,
+    marketMode: legacyLink ? "classic" : (MARKET_MODES.includes(requestedMode) ? requestedMode : "players"),
+    compatibilityNote: legacyLink ? "Older scenario link opened in Classic mode to preserve its original rules." : "",
+  };
 }
 
 const SUITS = [
@@ -37,6 +50,7 @@ const MAJORITY_BONUS_ESTIMATE = 100.0;
 
 const durationSelect = document.getElementById("durationSelect");
 const seedInput = document.getElementById("seedInput");
+const marketModeSelect = document.getElementById("marketModeSelect");
 const speedSelect = document.getElementById("speedSelect");
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -54,6 +68,7 @@ const trackerMetaEl = document.getElementById("trackerMeta");
 const strengthRowsEl = document.getElementById("strengthRows");
 const resetStrengthBtn = document.getElementById("resetStrengthBtn");
 const tapeEl = document.getElementById("tapeItems");
+const compatibilityNoteEl = document.getElementById("compatibilityNote");
 
 class FiggieViewerGame {
   constructor() {
@@ -74,12 +89,20 @@ class FiggieViewerGame {
     this.seed = 7;
     this.rngState = 7;
     this.players = [];
+    this.marketMode = "players";
+    this.humanSeated = false;
+    this.pausedDuringRound = false;
+    this.lastActionMessage = "";
   }
 
-  reset(durationMs, seed = 7) {
+  reset(durationMs, seed = 7, options = {}) {
     const scenario = normalizeScenario(seed, durationMs);
     this.seed = scenario.seed;
     durationMs = scenario.durationMs;
+    this.marketMode = MARKET_MODES.includes(options.marketMode) ? options.marketMode : this.marketMode;
+    this.humanSeated = Boolean(options.humanSeated);
+    this.pausedDuringRound = false;
+    this.lastActionMessage = "";
     this.rngState = this.seed >>> 0;
     this.durationMs = durationMs;
     this.elapsedMs = 0;
@@ -90,7 +113,7 @@ class FiggieViewerGame {
     this.revealGoal = false;
     this.winnerIdxs = [];
     this.winnerLabel = "Pending";
-    this.antePot = BOT_NAMES.length * this.ante;
+    this.antePot = 4 * this.ante;
     this.cashAfterAnte = this.startingCash - this.ante;
     this.potRemaining = this.antePot;
     this.goalBonusPaid = 0.0;
@@ -105,10 +128,12 @@ class FiggieViewerGame {
 
     const deal = this.dealRound();
     this.goalSuitIdx = deal.goalSuitIdx;
-    this.players = BOT_NAMES.map((name, idx) => ({
-      name,
-      strategy: idx,
-      style: BOT_STYLES[idx],
+    const specs = options.playerSpecs || BOT_NAMES.map((name, strategy) => ({ name, strategy }));
+    this.players = specs.map((spec, idx) => ({
+      name: spec.name,
+      strategy: spec.strategy,
+      style: spec.style || BOT_STYLES[spec.strategy] || "Human player",
+      isHuman: Boolean(spec.isHuman),
       inventory: deal.inventories[idx],
       initialInventory: [...deal.inventories[idx]],
       cash: this.cashAfterAnte,
@@ -123,8 +148,8 @@ class FiggieViewerGame {
     }));
   }
 
-  start(durationMs, seed, speed = 1) {
-    this.reset(durationMs, seed);
+  start(durationMs, seed, speed = 1, options = {}) {
+    this.reset(durationMs, seed, options);
     this.speed = speed;
     this.running = true;
     this.paused = false;
@@ -140,6 +165,7 @@ class FiggieViewerGame {
 
   setPaused(paused) {
     this.paused = paused;
+    if (paused && this.running && this.humanSeated) this.pausedDuringRound = true;
     if (paused && this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -169,6 +195,7 @@ class FiggieViewerGame {
     this.ageAndExpireQuotes();
     this.updateExternalBook();
     for (let i = 0; i < this.players.length; i += 1) {
+      if (this.players[i].isHuman) continue;
       const action = this.pickAction(i);
       this.applyAction(i, action);
     }
@@ -236,6 +263,9 @@ class FiggieViewerGame {
   }
 
   quotePrice(side, suit, level) {
+    if (this.marketMode === "players") {
+      return this.clamp(Math.round(Number(level)), PRICE_FLOOR, PRICE_CAP);
+    }
     if (side === "quote_bid") {
       return Math.max(0, this.externalBid[suit] + this.tickSize * (level - 1));
     }
@@ -243,14 +273,15 @@ class FiggieViewerGame {
   }
 
   bestBid(suit, excludingPlayerIdx) {
-    let bestPrice = this.externalBid[suit];
+    let bestPrice = this.marketMode === "players" ? -Infinity : this.externalBid[suit];
     let buyer = null;
     for (let i = 0; i < this.players.length; i += 1) {
       if (i === excludingPlayerIdx) {
         continue;
       }
       const quote = this.players[i].bidQuotes[suit];
-      if (quote >= bestPrice) {
+      if (quote > bestPrice || (quote === bestPrice && buyer !== null)
+        || (this.marketMode === "classic" && quote === bestPrice)) {
         bestPrice = quote;
         buyer = i;
       }
@@ -259,14 +290,15 @@ class FiggieViewerGame {
   }
 
   bestAsk(suit, excludingPlayerIdx) {
-    let bestPrice = this.externalAsk[suit];
+    let bestPrice = this.marketMode === "players" ? Infinity : this.externalAsk[suit];
     let seller = null;
     for (let i = 0; i < this.players.length; i += 1) {
       if (i === excludingPlayerIdx) {
         continue;
       }
       const quote = this.players[i].askQuotes[suit];
-      if (quote <= bestPrice) {
+      if (quote < bestPrice || (quote === bestPrice && seller !== null)
+        || (this.marketMode === "classic" && quote === bestPrice)) {
         bestPrice = quote;
         seller = i;
       }
@@ -281,11 +313,33 @@ class FiggieViewerGame {
     }
 
     const suit = action.suit;
-    if (suit < 0 || suit >= SUITS.length) {
+    if (!Number.isInteger(suit) || suit < 0 || suit >= SUITS.length) {
       return;
     }
 
     if (action.kind === "quote_bid") {
+      if (this.marketMode === "players") {
+        const price = this.quotePrice(action.kind, suit, action.price);
+        if (!Number.isFinite(price) || player.cash < price) {
+          this.lastActionMessage = `${player.name}'s bid at $${price} was rejected: insufficient cash.`;
+          return false;
+        }
+        const ownAsk = player.askQuotes[suit];
+        if (Number.isFinite(ownAsk) && price >= ownAsk) {
+          this.lastActionMessage = `${player.name}'s bid at $${price} was rejected: it would cross their own offer.`;
+          return false;
+        }
+        const ask = this.bestAsk(suit, playerIdx);
+        if (ask.seller !== null && price >= ask.price) {
+          this.trade(playerIdx, ask.seller, suit, ask.price, "buy");
+          this.lastActionMessage = `${player.name}'s bid at $${price} traded with ${this.players[ask.seller].name}'s offer at $${ask.price}.`;
+          return true;
+        }
+        player.bidQuotes[suit] = price;
+        player.bidQuoteAges[suit] = 0;
+        this.lastActionMessage = `${player.name} bid $${price} on ${SUITS[suit].name}.`;
+        return true;
+      }
       const level = this.clamp(action.level, 0, 2);
       player.bidQuotes[suit] = this.quotePrice("quote_bid", suit, level);
       player.bidQuoteAges[suit] = 0;
@@ -293,6 +347,28 @@ class FiggieViewerGame {
     }
 
     if (action.kind === "quote_ask") {
+      if (this.marketMode === "players") {
+        const price = this.quotePrice(action.kind, suit, action.price);
+        if (player.inventory[suit] <= 0) {
+          this.lastActionMessage = `${player.name}'s offer at $${price} was rejected: no ${SUITS[suit].name} card to back it.`;
+          return false;
+        }
+        const ownBid = player.bidQuotes[suit];
+        if (Number.isFinite(ownBid) && price <= ownBid) {
+          this.lastActionMessage = `${player.name}'s offer at $${price} was rejected: it would cross their own bid.`;
+          return false;
+        }
+        const bid = this.bestBid(suit, playerIdx);
+        if (bid.buyer !== null && price <= bid.price) {
+          this.trade(bid.buyer, playerIdx, suit, bid.price, "sell");
+          this.lastActionMessage = `${player.name}'s offer at $${price} traded with ${this.players[bid.buyer].name}'s bid at $${bid.price}.`;
+          return true;
+        }
+        player.askQuotes[suit] = price;
+        player.askQuoteAges[suit] = 0;
+        this.lastActionMessage = `${player.name} offered ${SUITS[suit].name} at $${price}.`;
+        return true;
+      }
       const level = this.clamp(action.level, 0, 2);
       player.askQuotes[suit] = this.quotePrice("quote_ask", suit, level);
       player.askQuoteAges[suit] = 0;
@@ -303,6 +379,10 @@ class FiggieViewerGame {
       const ask = this.bestAsk(suit, playerIdx);
       let seller = ask.seller;
       if (seller === null) {
+        if (this.marketMode === "players") {
+          this.lastActionMessage = `${player.name} could not buy ${SUITS[suit].name}: no player offer is resting.`;
+          return false;
+        }
         if (this.random() > this.externalFillProb) {
           return;
         }
@@ -312,13 +392,17 @@ class FiggieViewerGame {
         }
       }
       this.trade(playerIdx, seller, suit, ask.price, "buy");
-      return;
+      return true;
     }
 
     if (action.kind === "sell") {
       const bid = this.bestBid(suit, playerIdx);
       let buyer = bid.buyer;
       if (buyer === null) {
+        if (this.marketMode === "players") {
+          this.lastActionMessage = `${player.name} could not sell ${SUITS[suit].name}: no player bid is resting.`;
+          return false;
+        }
         if (this.random() > this.externalFillProb) {
           return;
         }
@@ -328,7 +412,9 @@ class FiggieViewerGame {
         }
       }
       this.trade(buyer, playerIdx, suit, bid.price, "sell");
+      return true;
     }
+    return false;
   }
 
   randomCounterparty(side, suit, price, excludingPlayerIdx) {
@@ -382,6 +468,7 @@ class FiggieViewerGame {
     };
     this.tradeTape.unshift(trade);
     this.roundLog.push(trade);
+    if (this.marketMode === "players") this.clearAllQuotes();
     if (this.tradeTape.length > 70) {
       this.tradeTape.length = 70;
     }
@@ -399,6 +486,43 @@ class FiggieViewerGame {
       return this.detectiveAction(playerIdx);
     }
     return this.blufferAction(playerIdx);
+  }
+
+  clearAllQuotes() {
+    for (const player of this.players) {
+      player.bidQuotes.fill(-Infinity);
+      player.askQuotes.fill(Infinity);
+      player.bidQuoteAges.fill(-1);
+      player.askQuoteAges.fill(-1);
+    }
+  }
+
+  loadDeal({ inventories, goalSuitIdx, startingCash = this.startingCash, ante = this.ante, marketMode = "players" }) {
+    if (!Array.isArray(inventories) || inventories.length !== 4
+      || inventories.some((hand) => !Array.isArray(hand) || hand.length !== SUITS.length)) {
+      throw new Error("loadDeal expects four four-suit inventories");
+    }
+    this.goalSuitIdx = Number(goalSuitIdx);
+    this.marketMode = MARKET_MODES.includes(marketMode) ? marketMode : "players";
+    this.startingCash = Number(startingCash);
+    this.ante = Number(ante);
+    this.cashAfterAnte = this.startingCash - this.ante;
+    this.antePot = 4 * this.ante;
+    this.potRemaining = this.antePot;
+    this.players = BOT_NAMES.map((name, idx) => ({
+      name, strategy: idx, style: BOT_STYLES[idx],
+      inventory: inventories[idx].map(Number),
+      initialInventory: inventories[idx].map(Number),
+      cash: this.cashAfterAnte, tradingCashflow: null,
+      goalCardPayout: 0, majorityPayout: 0, trades: 0,
+      bidQuotes: Array(SUITS.length).fill(-Infinity),
+      askQuotes: Array(SUITS.length).fill(Infinity),
+      bidQuoteAges: Array(SUITS.length).fill(-1),
+      askQuoteAges: Array(SUITS.length).fill(-1),
+    }));
+    this.tradeTape = [];
+    this.roundLog = [];
+    this.tradeId = 0;
   }
 
   marketView(playerIdx) {
@@ -423,6 +547,7 @@ class FiggieViewerGame {
   }
 
   hunterAction(playerIdx) {
+    if (this.marketMode === "players") return this.hunterEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const posterior = goalSuitPosterior(player.initialInventory);
@@ -449,6 +574,7 @@ class FiggieViewerGame {
   }
 
   bankerAction(playerIdx) {
+    if (this.marketMode === "players") return this.bankerEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const edge = 1.0;
@@ -502,6 +628,7 @@ class FiggieViewerGame {
   }
 
   detectiveAction(playerIdx) {
+    if (this.marketMode === "players") return this.detectiveEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const prior = goalSuitPosterior(player.initialInventory);
@@ -541,6 +668,7 @@ class FiggieViewerGame {
   }
 
   blufferAction(playerIdx) {
+    if (this.marketMode === "players") return this.blufferEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const posterior = goalSuitPosterior(player.initialInventory);
@@ -631,6 +759,7 @@ class FiggieViewerGame {
   }
 
   updateExternalBook() {
+    if (this.marketMode === "players") return;
     const half = this.baseSpread / 2;
     for (let i = 0; i < SUITS.length; i += 1) {
       this.fundamentalMid[i] = this.clamp(this.fundamentalMid[i] + this.randn(0, this.driftStd), 1, 20);
@@ -642,7 +771,10 @@ class FiggieViewerGame {
   markToMarket(player) {
     let value = player.cash;
     for (let s = 0; s < SUITS.length; s += 1) {
-      value += player.inventory[s] * ((this.externalBid[s] + this.externalAsk[s]) / 2);
+      const mark = this.marketMode === "players"
+        ? this.lastTradePrice[s]
+        : (this.externalBid[s] + this.externalAsk[s]) / 2;
+      value += player.inventory[s] * mark;
     }
     return value;
   }
@@ -704,6 +836,201 @@ class FiggieViewerGame {
     const u2 = 1 - this.random();
     const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
     return mean + z0 * stdDev;
+  }
+
+  endogenousFair(posterior, player, suit) {
+    const cardValue = this.goalCardValue + (player.inventory[suit] < 6 ? EXPECTED_POT_REMAINDER / 6 : 0);
+    return posterior[suit] * cardValue;
+  }
+
+  clipPlayerQuote(price, player, isBid) {
+    if (isBid && player.cash < PRICE_FLOOR) return null;
+    const ceiling = isBid ? Math.min(PRICE_CAP, player.cash) : PRICE_CAP;
+    if (ceiling < PRICE_FLOOR) return null;
+    return this.clamp(Math.round(price), PRICE_FLOOR, ceiling);
+  }
+
+  backedBid(playerIdx, suit, price) {
+    const player = this.players[playerIdx];
+    let quote = this.clipPlayerQuote(price, player, true);
+    const ownAsk = player.askQuotes[suit];
+    if (quote !== null && Number.isFinite(ownAsk) && quote >= ownAsk) {
+      quote = this.clipPlayerQuote(ownAsk - 1, player, true);
+    }
+    return quote === null ? { kind: "hold" } : { kind: "quote_bid", suit, price: quote };
+  }
+
+  backedAsk(playerIdx, suit, price) {
+    const player = this.players[playerIdx];
+    if (player.inventory[suit] <= 0) return { kind: "hold" };
+    let quote = this.clipPlayerQuote(price, player, false);
+    const ownBid = player.bidQuotes[suit];
+    if (quote !== null && Number.isFinite(ownBid) && quote <= ownBid) {
+      quote = this.clipPlayerQuote(ownBid + 1, player, false);
+    }
+    return quote === null ? { kind: "hold" } : { kind: "quote_ask", suit, price: quote };
+  }
+
+  pullOverpricedBid(playerIdx, fair, willingness) {
+    const player = this.players[playerIdx];
+    let chosen = -1;
+    let ceiling = 0;
+    let gap = 0;
+    for (let suit = 0; suit < SUITS.length; suit += 1) {
+      const resting = player.bidQuotes[suit];
+      if (!Number.isFinite(resting)) continue;
+      const ownAsk = player.askQuotes[suit];
+      let willing = willingness[suit];
+      const crossed = Number.isFinite(ownAsk) && resting >= ownAsk;
+      if (crossed) willing = Math.min(willing, ownAsk - 1);
+      if (resting <= fair[suit] + 0.25 && !crossed) continue;
+      if (resting - willing > gap) {
+        chosen = suit;
+        ceiling = willing;
+        gap = resting - willing;
+      }
+    }
+    if (chosen < 0) return null;
+    const quote = this.clipPlayerQuote(ceiling, player, true);
+    if (quote === null || quote >= player.bidQuotes[chosen]) return null;
+    return { kind: "quote_bid", suit: chosen, price: quote };
+  }
+
+  hunterEndogenousAction(playerIdx) {
+    const player = this.players[playerIdx];
+    const posterior = goalSuitPosterior(player.initialInventory);
+    const target = this.argmax(posterior);
+    const fair = posterior.map((_, suit) => this.endogenousFair(posterior, player, suit));
+    const willingness = Array(SUITS.length).fill(0);
+    willingness[target] = fair[target] - 1;
+    const stale = this.pullOverpricedBid(playerIdx, fair, willingness);
+    if (stale) return stale;
+    const ask = this.bestAsk(target, playerIdx);
+    if (ask.seller !== null && player.cash >= ask.price && ask.price <= fair[target]) {
+      return { kind: "buy", suit: target };
+    }
+    const junk = SUITS.map((_, suit) => suit).filter((suit) => (
+      suit !== target && posterior[suit] < 0.15 && player.inventory[suit] > 0
+    ));
+    if (junk.length && this.random() < 0.6) {
+      const suit = junk.reduce((best, next) => player.inventory[next] > player.inventory[best] ? next : best);
+      if (this.bestBid(suit, playerIdx).buyer !== null) return { kind: "sell", suit };
+      return this.backedAsk(playerIdx, suit, fair[suit] + 2);
+    }
+    return this.backedBid(playerIdx, target, fair[target] - 1);
+  }
+
+  bankerEndogenousAction(playerIdx) {
+    const player = this.players[playerIdx];
+    const posterior = goalSuitPosterior(player.initialInventory);
+    const fair = posterior.map((_, suit) => this.endogenousFair(posterior, player, suit));
+    const position = player.inventory.map((count, suit) => count - player.initialInventory[suit]);
+    let buySuit = -1;
+    let sellSuit = -1;
+    let buyGift = 4;
+    let sellGift = 4;
+    for (let suit = 0; suit < SUITS.length; suit += 1) {
+      const ask = this.bestAsk(suit, playerIdx);
+      const bid = this.bestBid(suit, playerIdx);
+      const giftToBuy = ask.seller !== null && player.cash >= ask.price ? fair[suit] - ask.price : -Infinity;
+      const giftToSell = bid.buyer !== null && player.inventory[suit] > 0 ? bid.price - fair[suit] : -Infinity;
+      if (giftToBuy > buyGift) { buyGift = giftToBuy; buySuit = suit; }
+      if (giftToSell > sellGift) { sellGift = giftToSell; sellSuit = suit; }
+    }
+    if (buySuit >= 0) return { kind: "buy", suit: buySuit };
+    if (sellSuit >= 0) return { kind: "sell", suit: sellSuit };
+
+    const bidFirst = Math.floor(this.tick / SUITS.length) % 2 === 0;
+    for (let offset = 0; offset < SUITS.length; offset += 1) {
+      const suit = (this.tick + offset) % SUITS.length;
+      const skew = -0.5 * position[suit];
+      for (const side of bidFirst ? ["bid", "ask"] : ["ask", "bid"]) {
+        if (side === "bid" && position[suit] < 3) {
+          const action = this.backedBid(playerIdx, suit, fair[suit] - 2 + skew);
+          if (action.kind !== "hold") return action;
+        }
+        if (side === "ask" && player.inventory[suit] > 0 && position[suit] > -3) {
+          const action = this.backedAsk(playerIdx, suit, fair[suit] + 2 + skew);
+          if (action.kind !== "hold") return action;
+        }
+      }
+    }
+    return { kind: "hold" };
+  }
+
+  detectiveEndogenousAction(playerIdx) {
+    const player = this.players[playerIdx];
+    const prior = goalSuitPosterior(player.initialInventory);
+    const flow = this.othersFlow(player);
+    const weighted = prior.map((p, suit) => p * Math.exp(0.35 * this.clamp(flow[suit], -10, 10)));
+    const total = weighted.reduce((sum, value) => sum + value, 0);
+    const posterior = weighted.map((value) => value / total);
+    const target = this.argmax(posterior);
+    const ruledOut = SUITS.findIndex((_, suit) => suit !== target && posterior[suit] < 0.05 && player.inventory[suit] > 0);
+    const gathering = this.roundFraction() < 0.2 || posterior[target] < 0.55;
+    const fair = posterior.map((_, suit) => this.endogenousFair(posterior, player, suit));
+    const willingness = Array(SUITS.length).fill(0);
+    willingness[target] = gathering ? 0.5 * fair[target] : fair[target] - 2;
+    const stale = this.pullOverpricedBid(playerIdx, fair, willingness);
+    if (stale) return stale;
+    if (gathering) {
+      if (ruledOut >= 0 && this.random() < 0.3) {
+        return this.bestBid(ruledOut, playerIdx).buyer !== null
+          ? { kind: "sell", suit: ruledOut }
+          : this.backedAsk(playerIdx, ruledOut, fair[ruledOut] + 2);
+      }
+      if (this.random() < 0.3) return { kind: "hold" };
+      return this.backedBid(playerIdx, target, 0.5 * fair[target]);
+    }
+    const ask = this.bestAsk(target, playerIdx);
+    if (ask.seller !== null && player.cash >= ask.price && ask.price <= fair[target]) {
+      return { kind: "buy", suit: target };
+    }
+    if (ruledOut >= 0) {
+      return this.bestBid(ruledOut, playerIdx).buyer !== null
+        ? { kind: "sell", suit: ruledOut }
+        : this.backedAsk(playerIdx, ruledOut, fair[ruledOut] + 2);
+    }
+    return this.backedBid(playerIdx, target, fair[target] - 2);
+  }
+
+  blufferEndogenousAction(playerIdx) {
+    const player = this.players[playerIdx];
+    const posterior = goalSuitPosterior(player.initialInventory);
+    const target = this.argmax(posterior);
+    const masked = posterior.map((value, suit) => suit === target ? Infinity : value);
+    const decoy = this.argmin(masked);
+    const fraction = this.roundFraction();
+    const fair = posterior.map((_, suit) => this.endogenousFair(posterior, player, suit));
+    const willingness = Array(SUITS.length).fill(0);
+    willingness[target] = fraction > 0.85 ? fair[target] - 2 : 0.6 * fair[target];
+    const stale = this.pullOverpricedBid(playerIdx, fair, willingness);
+    if (stale) return stale;
+    if (fraction < 0.3) {
+      const bought = player.inventory[decoy] - player.initialInventory[decoy];
+      const ask = this.bestAsk(decoy, playerIdx);
+      if (bought < 3 && ask.seller !== null && ask.price <= 12 && player.cash >= ask.price && this.random() < 0.6) {
+        return { kind: "buy", suit: decoy };
+      }
+      return this.backedBid(playerIdx, target, 0.6 * fair[target]);
+    }
+    const flow = this.othersFlow(player);
+    const fades = SUITS.map((_, suit) => suit).filter((suit) => (
+      suit !== target && flow[suit] >= 2 && player.inventory[suit] > 0
+    ));
+    if (fades.length && this.random() < 0.5) {
+      const suit = fades.reduce((best, next) => flow[next] > flow[best] ? next : best);
+      if (this.bestBid(suit, playerIdx).buyer !== null) return { kind: "sell", suit };
+    }
+    if (player.inventory[decoy] > 0 && this.random() < 0.5) {
+      if (fraction > 0.7 && this.bestBid(decoy, playerIdx).buyer !== null) return { kind: "sell", suit: decoy };
+      return this.backedAsk(playerIdx, decoy, Math.max(fair[decoy] + 2, this.lastTradePrice[decoy] + 2));
+    }
+    const ask = this.bestAsk(target, playerIdx);
+    if (fraction > 0.85 && ask.seller !== null && player.cash >= ask.price && ask.price <= posterior[target] * this.goalCardValue) {
+      return { kind: "buy", suit: target };
+    }
+    return this.backedBid(playerIdx, target, fraction > 0.85 ? fair[target] - 2 : 0.6 * fair[target]);
   }
 }
 
@@ -914,8 +1241,10 @@ function render() {
     const isTrade = tapeHead && tapeHead.suit === idx;
     const bestBid = game.bestBid(idx, -1);
     const bestAsk = game.bestAsk(idx, -1);
-    const bidOwner = bestBid.buyer === null ? "External" : game.players[bestBid.buyer].name;
-    const askOwner = bestAsk.seller === null ? "External" : game.players[bestAsk.seller].name;
+    const bidOwner = bestBid.buyer === null ? (game.marketMode === "classic" ? "External" : "—") : game.players[bestBid.buyer].name;
+    const askOwner = bestAsk.seller === null ? (game.marketMode === "classic" ? "External" : "—") : game.players[bestAsk.seller].name;
+    const bidPrice = Number.isFinite(bestBid.price) ? `$${bestBid.price.toFixed(0)}` : "—";
+    const askPrice = Number.isFinite(bestAsk.price) ? `$${bestAsk.price.toFixed(0)}` : "—";
     return `
       <article class="suit-card ${isTrade ? "trade-flash" : ""}">
         <div class="suit-head">
@@ -923,9 +1252,9 @@ function render() {
           <span>${game.lastTradeSignedVolume[idx] > 0 ? "↑" : game.lastTradeSignedVolume[idx] < 0 ? "↓" : "•"}</span>
         </div>
         <div class="suit-meta">
-          Bid ${bestBid.price.toFixed(2)} · ${bidOwner}<br />
-          Ask ${bestAsk.price.toFixed(2)} · ${askOwner}<br />
-          Last ${game.lastTradePrice[idx].toFixed(2)}
+          Bid ${bidPrice} · ${bidOwner}<br />
+          Ask ${askPrice} · ${askOwner}<br />
+          Last ${game.lastTradePrice[idx] ? `$${game.lastTradePrice[idx].toFixed(0)}` : "—"}
         </div>
       </article>
     `;
@@ -1038,7 +1367,18 @@ resetStrengthBtn.addEventListener("click", () => {
 const initialScenario = scenarioFromUrl(window.location.href);
 seedInput.value = initialScenario.seed;
 durationSelect.value = initialScenario.durationMs;
-game.reset(initialScenario.durationMs, initialScenario.seed);
+if (marketModeSelect) marketModeSelect.value = initialScenario.marketMode;
+game.reset(initialScenario.durationMs, initialScenario.seed, { marketMode: initialScenario.marketMode });
+if (compatibilityNoteEl) {
+  compatibilityNoteEl.textContent = initialScenario.compatibilityNote;
+  compatibilityNoteEl.hidden = !initialScenario.compatibilityNote;
+}
+if (marketModeSelect) {
+  marketModeSelect.addEventListener("change", () => {
+    game.marketMode = MARKET_MODES.includes(marketModeSelect.value) ? marketModeSelect.value : "players";
+    render();
+  });
+}
 render();
 
 
@@ -1062,6 +1402,9 @@ function roundPayload(round) {
     settled: round.revealGoal,
     seed: round.seed,
     durationMs: round.durationMs,
+    marketMode: round.marketMode,
+    humanSeated: round.humanSeated,
+    pausedDuringRound: round.pausedDuringRound,
     goalSuit: SUITS[round.goalSuitIdx].name,
     winner: round.winnerLabel, // Legacy field: majority-bonus recipients, not profit leaders.
     players: round.players.map((player) => ({
@@ -1118,6 +1461,8 @@ function scenarioUrl() {
   url.hash = "";
   url.searchParams.set("seed", scenario.seed);
   url.searchParams.set("duration", scenario.durationMs);
+  url.searchParams.set("market", game.marketMode);
+  url.searchParams.set("version", SIMULATION_VERSION);
   return url.href;
 }
 

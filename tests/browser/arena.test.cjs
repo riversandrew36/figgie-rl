@@ -35,8 +35,10 @@ test('same scenario has identical trades and payouts at all speeds and with sing
   const baseline = finish(load().run, 1, false);
   for (const speed of [2, 4, 8]) assert.deepEqual(finish(load().run, speed, false), baseline);
   assert.deepEqual(finish(load().run, 1, true), baseline);
-  assert.equal(baseline.schemaVersion, 2);
-  assert.equal(baseline.simulationVersion, '1.0.0');
+  assert.equal(baseline.schemaVersion, 3);
+  assert.equal(baseline.simulationVersion, '2.0.0');
+  assert.equal(baseline.marketMode, 'players');
+  assert.equal(baseline.humanSeated, false);
   for (const player of baseline.players) {
     const p = player.payoutBreakdown;
     assert.ok(Math.abs(p.startingCash - p.ante + p.netTradingCashflow +
@@ -76,7 +78,7 @@ test('URL parameters normalize invalid seeds/durations without starting a round'
   assert.equal(run('game.seed'), -23);
   assert.equal(run('game.durationMs'), 60000);
   assert.equal(run('game.speed'), 1);
-  assert.equal(run('scenarioUrl()'), 'https://example.test/figgie-rl/?seed=-23&duration=60000');
+  assert.equal(run('scenarioUrl()'), 'https://example.test/figgie-rl/?seed=-23&duration=60000&market=classic&version=2.0.0');
 });
 
 test('unfinished exports explicitly omit settlement and leave existing fields available', () => {
@@ -87,4 +89,91 @@ test('unfinished exports explicitly omit settlement and leave existing fields av
   assert.equal(log.players[0].payoutBreakdown, null);
   assert.ok(Array.isArray(log.trades));
   assert.ok('winner' in log && 'goalSuit' in log && 'cash' in log.players[0]);
+  assert.equal(log.marketMode, 'players');
+  assert.equal(log.humanSeated, false);
+});
+
+test('player mode is the default, accepts the official duration, and keeps old links in classic mode', () => {
+  const current = load().run;
+  assert.equal(current('game.marketMode'), 'players');
+  assert.equal(current('normalizeScenario(1, 240000).durationMs'), 240000);
+  for (const url of [
+    'https://example.test/figgie-rl/?seed=9&duration=60000',
+    'https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=1.0.0',
+    'https://example.test/figgie-rl/?seed=9&duration=60000&market=classic',
+  ]) {
+    const { run } = load(url);
+    assert.equal(run('game.marketMode'), 'classic');
+    assert.match(run('scenarioFromUrl(window.location.href).compatibilityNote'), /Classic mode/);
+  }
+  const { run } = load('https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0');
+  assert.equal(run('game.marketMode'), 'players');
+  assert.equal(run('scenarioUrl()'), 'https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0');
+});
+
+test('official player quotes are backed, cross at the resting price, and clear the whole book', () => {
+  const { run } = load();
+  run(`game.loadDeal({goalSuitIdx: 0, inventories: [[2,3,3,2],[3,2,3,2],[3,3,2,2],[2,2,2,4]]});`);
+  run(`game.players[0].cash = 5; game.applyAction(0, {kind:'quote_bid', suit:0, price:6});`);
+  run(`game.players[1].inventory[0] = 0; game.applyAction(1, {kind:'quote_ask', suit:0, price:8});`);
+  assert.equal(run('game.bestBid(0, -1).buyer'), null);
+  assert.equal(run('game.bestAsk(0, -1).seller'), null);
+  assert.equal(run('game.bestBid(0, -1).price'), -Infinity);
+  assert.equal(run('game.bestAsk(0, -1).price'), Infinity);
+
+  run(`game.players[0].cash = 300; game.players[1].inventory[0] = 3; game.applyAction(1, {kind:'quote_ask', suit:0, price:8});`);
+  run(`game.applyAction(0, {kind:'quote_bid', suit:1, price:4});`);
+  run(`game.applyAction(2, {kind:'quote_ask', suit:2, price:30});`);
+  const beforeBuyer = run('game.players[3].cash');
+  const beforeSeller = run('game.players[1].cash');
+  run(`game.applyAction(3, {kind:'quote_bid', suit:0, price:12});`);
+  assert.equal(run('game.roundLog.length'), 1);
+  assert.equal(run('game.roundLog[0].price'), 8);
+  assert.equal(run('game.players[3].cash'), beforeBuyer - 8);
+  assert.equal(run('game.players[1].cash'), beforeSeller + 8);
+  assert.equal(run('game.players.some(p => p.bidQuotes.some(Number.isFinite) || p.askQuotes.some(Number.isFinite))'), false);
+});
+
+test('player market orders wait on empty books, replace quotes, and hit the resting bid', () => {
+  const { run } = load();
+  run(`game.loadDeal({goalSuitIdx: 2, inventories: [[2,3,3,2],[3,2,3,2],[3,3,2,2],[2,2,2,4]]});`);
+  run(`game.applyAction(0, {kind:'buy', suit:0}); game.applyAction(0, {kind:'sell', suit:0});`);
+  assert.equal(run('game.roundLog.length'), 0);
+  run(`game.applyAction(0, {kind:'quote_bid', suit:0, price:5}); game.applyAction(0, {kind:'quote_bid', suit:0, price:7});`);
+  assert.equal(run('game.players[0].bidQuotes[0]'), 7);
+  const buyerCash = run('game.players[0].cash');
+  run(`game.applyAction(2, {kind:'quote_ask', suit:0, price:6});`);
+  assert.equal(run('game.roundLog[0].price'), 7);
+  assert.equal(run('game.players[0].cash'), buyerCash - 7);
+  assert.equal(run('game.players.some(p => p.bidQuotes.some(Number.isFinite) || p.askQuotes.some(Number.isFinite))'), false);
+});
+
+test('players mode bot trade rate meets the 1–50 seed target at 60 seconds', () => {
+  const { run } = load();
+  const result = plain(run(`(() => {
+    let trades = 0;
+    const perBot = [0, 0, 0, 0];
+    for (let seed = 1; seed <= 50; seed += 1) {
+      game.start(60000, seed);
+      game.setPaused(true);
+      while (game.running) {
+        for (const player of game.players) {
+          player.bidQuotes.forEach((price, suit) => { if (Number.isFinite(price)) {
+            if (player.cash < price) throw new Error('unbacked bot bid');
+            if (Number.isFinite(player.askQuotes[suit]) && price >= player.askQuotes[suit]) throw new Error('self-crossing bot');
+          }});
+          player.askQuotes.forEach((price, suit) => { if (Number.isFinite(price)) {
+            if (player.inventory[suit] <= 0) throw new Error('unbacked bot ask');
+            if (Number.isFinite(player.bidQuotes[suit]) && price <= player.bidQuotes[suit]) throw new Error('self-crossing bot');
+          }});
+        }
+        game.step(true);
+      }
+      trades += game.roundLog.length;
+      game.players.forEach((player, idx) => { perBot[idx] += player.trades; });
+    }
+    return {average: trades / 50, perBot};
+  })()`));
+  assert.ok(result.average >= 3, `average trades were ${result.average}`);
+  assert.ok(result.perBot.every((trades) => trades > 0), `bot totals were ${result.perBot}`);
 });
