@@ -53,6 +53,8 @@ py-modules = ["figgie_play"]
   "figgie_arena.js",
   "figgie_lessons.js",
   "og-image.png",
+  "rl_results.json",
+  "figgie_rl_showcase.js",
 ]
 
 [tool.pytest.ini_options]
