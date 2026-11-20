@@ -7,7 +7,7 @@ train PPO agents, and study learning under hidden information.
 [Train your first agent](docs/RL_QUICKSTART.md)
 
 - **Play and watch:** trade against three scripted opponents or watch four bots.
-  The arena supports seeded scenarios, keyboard trading, and settlement explanations.
+  Try the guided round, use Your read during play, or practice against a bot in Lessons.
 - **Train and evaluate:** the Python Gymnasium environment supports PPO, engineered
   belief features, paired baseline benchmarks, checkpoint metadata, and self-play.
 - **Reproduce and question:** use separate validation and final-test seeds, export
@@ -70,7 +70,19 @@ chip-sized value errors dominate PPO's shared gradient clipping, so
 7. Run the browser arena:
    - `figgie-arena`
    - Open `http://127.0.0.1:8000/figgie_play.html`
-   - The page, stylesheet, and script are read from the installed `figgie_rl.arena` package. Opening `figgie_rl/arena/figgie_play.html` directly also works, because the CSS and JS sit beside it.
+   - The page, stylesheet, and scripts are read from the installed `figgie_rl.arena` package. Opening `figgie_rl/arena/figgie_play.html` directly also works, because the CSS and JS sit beside it.
+
+## Learn while playing
+
+**Learn the basics** walks through a fixed practice deal, a resting-price fill,
+an offer, and settlement. In ordinary Play, **Your read** compares starting-hand
+odds with a heuristic based on public aggressive trades. Its rough card values
+include an estimate of the majority share. Pick a goal suit before settlement
+to measure your predictions in the local tracker.
+
+Lessons use fixed one-minute scenarios and save your best profit and pass
+status in this browser. Share a lesson from its card to send the same
+scenario to someone else.
 
 ## Playing styles
 
