@@ -1,27 +1,22 @@
 # Figgie Learning Lab (`figgie-rl`)
 
-An open **reinforcement-learning lab for Figgie**: explore trading strategies,
-train PPO agents, and study learning under hidden information.
+Play a one-minute card market, learn how to read the tape, and see what happened
+when PPO trained with and without hints about the hidden goal.
 
-**[Open the live lab](https://riversandrew36.github.io/figgie-rl/)** ·
-[Train your first agent](docs/RL_QUICKSTART.md)
+- **Play:** trade against three scripted opponents or watch four bots.
+- **Learn:** take the guided round, practice a bot lesson, or use Your read while you play.
+- **Daily deal:** play the shared UTC deal and copy a spoiler-free result.
+- **What the AI learned:** see the training curves, per-seed results, and scripted baselines
+  from the Python study. [Open the arena](https://riversandrew36.github.io/figgie-rl/)
 
-- **Play and watch:** trade against three scripted opponents or watch four bots.
-  Try the guided round, use Your read during play, or practice against a bot in Lessons.
-- **Train and evaluate:** the Python Gymnasium environment supports PPO, engineered
-  belief features, paired baseline benchmarks, checkpoint metadata, and self-play.
-- **Reproduce and question:** use separate validation and final-test seeds, export
-  results, and read the [experiment records and limitations](docs/PROJECT_STATUS.md).
+The Python Gymnasium lab supports PPO, belief features, paired benchmarks, and
+self-play. The browser runs a separate scripted simulation with player quotes.
+Classic mode opens older scenarios that used an outside book. The study charts
+report Python development-seed results.
 
-The browser and Python are separate simulations. The hosted viewer does **not** run
-PPO checkpoints. Its default market uses official quote matching with player
-liquidity only. Classic mode preserves the older outside book for old scenario links.
-Seeds and whole-round outcomes do not transfer between the implementations.
-No validated claim of stronger PPO play in the newer player-quote market is made.
-
-Start with the [RL quickstart](docs/RL_QUICKSTART.md) for a small train/evaluate
-experiment, or run `figgie-arena` locally after installation below. The public demo is hosted on GitHub Pages; see
-[deployment instructions](docs/DEPLOYMENT.md) for setup, checks, and rollback.
+[Train your first agent](docs/RL_QUICKSTART.md) ·
+[Experiment records and limitations](docs/PROJECT_STATUS.md) ·
+[Deployment instructions](docs/DEPLOYMENT.md)
 
 Independent educational implementation of [Figgie, created by Jane Street](https://www.figgie.com/).
 Not affiliated with or endorsed by Jane Street. [Watch Jane Street's gameplay video](https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s).
