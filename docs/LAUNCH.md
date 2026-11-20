@@ -30,3 +30,19 @@ Jane Street's gameplay video: https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s
 Ask five to ten early testers to try the demo without instructions, explain a
 round's outcome, and follow the RL guide. Use their feedback before a broader
 announcement. Posting to communities and contacting Jane Street are manual steps.
+
+## Launch checklist
+
+- [ ] Open the live demo under the `/figgie-rl/` prefix. Confirm all static
+  assets load and the game starts.
+- [ ] Paste the live URL into a social preview tool and confirm the title,
+  description, and preview image.
+- [ ] Check the daily deal on both sides of 00:00 UTC and open a dated
+  practice link.
+- [ ] Block browser storage and finish a daily round. Confirm the page explains
+  that the result was not saved.
+- [ ] Play and finish a round with only the keyboard.
+- [ ] Check the hero, market, coach, and research charts at 375px.
+- [ ] Verify Jane Street credit and both official links in the first viewport.
+- [ ] Confirm the arena makes only same-origin requests through a full round.
+  Opening an external credit or documentation link is an explicit navigation.

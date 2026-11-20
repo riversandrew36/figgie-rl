@@ -434,3 +434,35 @@ test('link preview metadata points to a packaged image under the Pages prefix', 
   expect(response.ok()).toBe(true);
   expect(response.headers()['content-type']).toContain('image/png');
 });
+
+test('research charts are accessible and the arena makes only same-origin requests', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  const requests = [];
+  const errors = [];
+  page.on('request', (request) => requests.push(request.url()));
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/figgie-rl/');
+  await expect(page.locator('.intro .attribution')).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.intro a[href="https://www.figgie.com/"]')).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.intro a[href^="https://www.youtube.com/"]')).toBeInViewport({ ratio: 1 });
+  const research = page.locator('#reinforcement-learning');
+  await expect(research.getByRole('heading', { name: 'What the AI learned' })).toBeVisible();
+  await expect(research.locator('#rlSummary')).toContainText('+46.14');
+  await expect(research.locator('#rlProvenance')).toContainText('not a held-out final test');
+  await expect(research.getByRole('img')).toHaveCount(4);
+  await expect(research.locator('svg[aria-label]')).toHaveCount(4);
+  await expect(research.getByRole('table')).toHaveCount(4);
+  for (const name of ['Hold', 'Bayesian', 'Hunter', 'Bluffer']) {
+    await expect(research.locator('#rlLadder svg')).toContainText(name);
+  }
+  const payload = await page.request.get('/figgie-rl/rl_results.json');
+  expect(payload.ok()).toBe(true);
+  expect(await payload.json()).toEqual(await page.locator('#rlShowcaseData').textContent().then(JSON.parse));
+  await research.screenshot({ path: info.outputPath('rl-showcase.png'), animations: 'disabled' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#playNow').click();
+  await completeRound(page);
+  const origin = new URL(page.url()).origin;
+  expect(requests.filter((request) => new URL(request).origin !== origin)).toEqual([]);
+  expect(errors).toEqual([]);
+});
