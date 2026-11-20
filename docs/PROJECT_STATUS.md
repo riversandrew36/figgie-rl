@@ -3,6 +3,27 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Post-round coach and lesson scoring — November 20, 2026
+
+After a Play round settles, the coach shows the effect of reversing each
+trade, a timeline of tape-adjusted goal odds, and up to three missed quotes.
+The per-trade edge is the change in final bankroll when that trade is included.
+Individual counterfactuals can count the same majority swing more than once,
+so the displayed reconciliation adjusts the edge total back to trading
+cashflow before adding actual payouts and subtracting the ante.
+
+| Lesson | Seed | Current pass condition |
+|---|---:|---|
+| Hunter | 5 | Sell Hunter a card above its value at settlement |
+| Banker | 1 | Finish with positive profit |
+| Detective | 19 | Lock the correct goal prediction before halftime |
+| Bluffer | 4 | Sell Bluffer a card outside the goal suit |
+
+The browser stores prediction totals, lesson progress, and up to twenty small
+round summaries locally. Quote snapshots stay in memory for the coach. Seeded
+trade logs and the RNG state match with snapshots enabled or disabled, and
+the simulation remains at version 2.0.0.
+
 ## Teaching in the browser arena — November 20, 2026
 
 The guided first round uses a fixed deal and scripted counterparty actions.

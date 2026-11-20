@@ -78,11 +78,19 @@ chip-sized value errors dominate PPO's shared gradient clipping, so
 an offer, and settlement. In ordinary Play, **Your read** compares starting-hand
 odds with a heuristic based on public aggressive trades. Its rough card values
 include an estimate of the majority share. Pick a goal suit before settlement
-to measure your predictions in the local tracker.
+to measure your predictions in the local tracker. Use **Lock in** to commit to
+a pick and see how often your correct predictions were locked before halftime.
 
 Lessons use fixed one-minute scenarios and save your best profit and pass
 status in this browser. Share a lesson from its card to send the same
 scenario to someone else.
+
+After settlement, **Review your round** uses hindsight to show the bankroll
+effect of undoing each trade, the evolution of your read, and up to three
+missed quotes. The reconciliation accounts for the ante and avoids counting
+settlement effects twice. Replay or share the same seed and lineup from the
+coach. The local tracker shows average hindsight edge per trade across the
+last ten Play rounds and net profit across the last twenty.
 
 ## Playing styles
 
