@@ -294,5 +294,56 @@ test('share a lesson, pass it, and save the goal prediction', async ({ page }, i
   await expect(page.locator('#predictionStats')).toContainText('1 correct out of 1');
   await page.reload();
   await expect(page.locator('#lesson-detective')).toContainText('Passed');
-  await expect(page.locator('#predictionStats')).toContainText('1 correct out of 1');
+  await expect(page.locator('#predictionStats')).toContainText('100% of correct picks locked before halftime');
+  await expect(page.locator('#profitTrend svg')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#resetCoachProgress').click();
+  await expect(page.locator('#predictionStats')).toContainText('0 correct out of 0');
+  await expect(page.locator('#profitTrend svg')).toHaveCount(0);
+});
+
+test('Play coach reviews a seeded trade, shares and replays the deal', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
+    get() { throw new DOMException('Storage blocked', 'SecurityError'); },
+  }));
+  await page.goto('/figgie-rl/?seed=4&duration=60000&market=players&version=2.0.0&mode=play&opponents=Hunter%2CBanker%2CBluffer');
+  await page.locator('#playBtn').click();
+  await page.locator('#pauseBtn').click();
+  await page.locator('#predictionPick').selectOption('0');
+  await page.locator('#predictionLock').click();
+  await expect(page.locator('#predictionPick')).toBeDisabled();
+  const suit = await page.evaluate(() => {
+    const suit = game.players[1].inventory.findIndex((count) => count > 0);
+    game.clearAllQuotes();
+    game.applyAction(1, {kind: 'quote_ask', suit, price: 8});
+    render();
+    return suit;
+  });
+  await page.locator(`[data-human-action="buy"][data-suit="${suit}"]`).click();
+  await expect(page.locator('#roundCoach')).toBeHidden();
+  await completeRound(page);
+  await expect(page.locator('#roundCoach')).toBeVisible();
+  await expect(page.locator('#coachTrades')).toContainText('Hunter');
+  await expect(page.getByRole('img', {name: /Your read/})).toBeVisible();
+  await expect(page.locator('#coachOdds')).toContainText('prediction locked');
+  await expect(page.locator('#coachTakeaways li').first()).toBeVisible();
+  await expect(page.locator('#edgeStats')).toContainText('Average hindsight edge per trade');
+  await expect(page.locator('#profitTrend svg')).toBeVisible();
+  await expect(page.locator('#coachTotals')).toContainText('Net profit');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#roundCoach').screenshot({path: info.outputPath('coach.png')});
+  await page.locator('#coachShare').click();
+  const url = new URL(await page.locator('#shareUrl').inputValue());
+  expect(url.searchParams.get('mode')).toBe('play');
+  expect(url.searchParams.get('opponents')).toBe('Hunter,Banker,Bluffer');
+  await page.locator('#coachReplay').click();
+  await expect(page.locator('#roundCoach')).toBeHidden();
+  expect(await page.evaluate(() => [game.seed, game.durationMs, game.players.map((p) => p.name)])).toEqual(
+    [4, 60000, ['You','Hunter','Banker','Bluffer']]);
+  await page.locator('#playBtn').click();
+  await page.locator('#watchModeInput').check();
+  await page.locator('#playBtn').click();
+  await completeRound(page);
+  await expect(page.locator('#roundCoach')).toBeHidden();
 });

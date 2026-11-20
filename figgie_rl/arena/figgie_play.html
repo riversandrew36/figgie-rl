@@ -196,6 +196,10 @@
       <ul id="coachMissed"></ul>
       <h3>Takeaways</h3>
       <ul id="coachTakeaways"></ul>
+      <div class="teaching-actions">
+        <button id="coachReplay" type="button">Replay this deal</button>
+        <button id="coachShare" class="reset-btn" type="button">Share this deal</button>
+      </div>
     </section>
     <section class="explanation panel" id="round-explanation" hidden aria-labelledby="explanation-title">
       <h2 class="section-title" id="explanation-title">Understand this round</h2>
@@ -230,6 +234,9 @@
         <button id="resetStrengthBtn" class="reset-btn" type="button">Reset Strength Stats</button>
       </div>
       <p id="predictionStats" class="small"></p>
+      <p id="edgeStats" class="small"></p>
+      <div id="profitTrend"></div>
+      <button id="resetCoachProgress" class="reset-btn" type="button">Reset Play progress</button>
       <div class="tracker-meta" id="trackerMeta">Settled rounds: 0</div>
       <table>
         <caption class="sr-only">Historical bot strength rankings</caption>
@@ -285,7 +292,7 @@ figgie-eval --model-path artifacts/ppo_learning/best_model/best_model.zip \
       <details><summary>Simulation assumptions and scope</summary>
         <p>The browser uses a separate JavaScript simulation. Player quotes mode has no outside book; Classic mode preserves the older drifting external quotes and probabilistic fills. The browser does not execute Python or trained PPO checkpoints. Seeds, mechanics, and results are not interchangeable between the implementations.</p>
         <p>This is an independent educational implementation of Figgie, created by Jane Street. It is not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> or <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">watch Jane Street’s gameplay video</a>.</p>
-        <p>No accounts or analytics. Only the baseline tracker is saved locally. No real money is involved.</p>
+        <p>No accounts or analytics. Tracker totals, lesson progress and preferences are saved locally. No real money is involved.</p>
       </details>
     </section>
 

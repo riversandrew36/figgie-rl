@@ -67,7 +67,7 @@ function missedEdges(round, seat) {
     if (round.humanActionTicks?.has(frame.tick)) continue;
     frame.books.forEach(({ bid, ask, held }, suit) => {
       for (const [buy, quote] of [[true, ask], [false, bid]]) {
-        if (quote === null || (buy ? quote.price > frame.cash : held === 0)) continue;
+        if (!quote || (buy ? quote.price > frame.cash : held === 0)) continue;
         const after = [...counts];
         if (suit === round.goalSuitIdx) {
           if ((buy ? after[quote.owner] : after[seat]) === 0) continue;
@@ -222,7 +222,7 @@ const arenaTeaching = (() => {
       const direction = Math.abs(tapeOdds - handOdds) < 1e-9 ? "unchanged" : tapeOdds > handOdds ? "up" : "down";
       const count = Math.abs(flow);
       const verb = flow > 0 ? "buy" : "sell";
-      const evidence = direction === "down" && data.some((other) => other.flow > flow && other.flow > 0)
+      const evidence = direction === "down" && flow === 0 && data.some((other) => other.flow > 0)
         ? "other suits drew the buying"
         : flow ? `others initiated ${count} more ${verb}${count === 1 ? "" : "s"} than ${flow > 0 ? "sells" : "buys"}`
           : "net aggressive buying here is zero";
@@ -433,7 +433,15 @@ const arenaTeaching = (() => {
   const lessonStatus = byId("lessonStatus");
   const lessonCards = byId("lessonCards");
   const predictionStats = load("predictions", { correct: 0, total: 0 });
-  const progress = load("skillProgress", {});
+  const previousProgress = load("progress", {});
+  const migratedProgress = Object.fromEntries(Object.keys(BOT_LESSONS).flatMap((id) => {
+    const previous = previousProgress[id];
+    if (!Number.isFinite(previous?.bestProfit)) return [];
+    return [[id, { passed: id === "banker" && Boolean(previous.passed), bestProfit: previous.bestProfit }]];
+  }));
+  const progress = load("skillProgress", migratedProgress);
+  const storedHistory = load("rounds", []);
+  const history = Array.isArray(storedHistory) ? storedHistory.slice(-20) : [];
   let nextLesson = null;
   let activeLesson = null;
 
@@ -443,6 +451,31 @@ const arenaTeaching = (() => {
     lock.disabled = prediction.disabled || prediction.value === "";
     const early = predictionStats.correct ? Math.round(100 * (predictionStats.earlyCorrect || 0) / predictionStats.correct) : 0;
     byId("predictionStats").textContent = `Goal predictions: ${predictionStats.correct} correct out of ${predictionStats.total} made. ${early}% of correct picks locked before halftime.`;
+  }
+
+  function renderProgress() {
+    const recent = history.slice(-10);
+    const count = recent.reduce((sum, round) => sum + round.trades, 0);
+    const total = recent.reduce((sum, round) => sum + round.edge, 0);
+    byId("edgeStats").textContent = count
+      ? `Average hindsight edge per trade: ${coachMoney(total / count)} across the last ${recent.length} Play rounds (${count} trades).`
+      : "Average hindsight edge per trade: no recent trades.";
+    const profits = history.map((round) => round.profit);
+    if (!profits.length) {
+      byId("profitTrend").textContent = "";
+      return;
+    }
+    const minimum = Math.min(0, ...profits);
+    const maximum = Math.max(0, ...profits);
+    const y = (profit) => 33 - 28 * (profit - minimum) / (maximum - minimum || 1);
+    const points = profits.map((profit, i) => `${5 + i * 190 / Math.max(1, profits.length - 1)},${y(profit)}`).join(" ");
+    const label = `Net profit over ${profits.length} Play rounds. Latest ${coachMoney(profits.at(-1))}.`;
+    byId("profitTrend").innerHTML = `<p class="small">${label}</p>
+      <svg class="profit-spark" viewBox="0 0 200 38" role="img" aria-label="${label}">
+        <path class="odds-axis" d="M5 ${y(0)}H195"/>
+        <polyline class="odds-series odds-1" points="${points}"/>
+        <circle class="odds-trade" cx="${profits.length > 1 ? 195 : 5}" cy="${y(profits.at(-1))}" r="2"/>
+      </svg>`;
   }
 
   function renderLessons() {
@@ -530,12 +563,16 @@ const arenaTeaching = (() => {
     byId("coachMissed").innerHTML = missed.length ? missed.map((quote) => `<li>${coachTime(game, quote.tick)} · ${quote.buy ? "Buy" : "Sell"} ${SUITS[quote.suit].name} at $${quote.price} with ${game.players[quote.owner].name} · ${coachMoney(quote.edge)} in hindsight</li>`).join("") : "<li>No positive missed edges in the recorded quotes.</li>";
     byId("coachTakeaways").innerHTML = coachTakeaways(game, trades, missed).map((note) => `<li>${note}</li>`).join("");
     coach.hidden = false;
+    return { edge: totals.edge, profit: totals.profit, trades: trades.length };
   }
 
   function roundEnded() {
     const seat = humanPlayerIndex();
     if (seat < 0 || step >= 0 || !game.revealGoal) return;
-    renderCoach(seat);
+    history.push(renderCoach(seat));
+    if (history.length > 20) history.shift();
+    save("rounds", history);
+    renderProgress();
     const picked = prediction.value !== "";
     const correct = picked && Number(prediction.value) === game.goalSuitIdx;
     if (picked) {
@@ -564,6 +601,31 @@ const arenaTeaching = (() => {
     renderLessons();
   }
 
+  byId("coachReplay").addEventListener("click", () => {
+    if (!game.revealGoal || !game.humanSeated) return;
+    const lineup = game.players.filter((player) => !player.isHuman).map((player) => player.name);
+    playModeInput.checked = true;
+    seedInput.value = game.seed;
+    durationSelect.value = game.durationMs;
+    for (const name of BOT_NAMES) byId("opponent" + name).checked = lineup.includes(name);
+    refreshModePreview();
+    playBtn.click();
+  });
+  byId("coachShare").addEventListener("click", () => byId("shareBtn").click());
+  byId("resetCoachProgress").addEventListener("click", () => {
+    if (!window.confirm("Reset local Play predictions, lesson results, and profit history?")) return;
+    history.length = 0;
+    Object.assign(predictionStats, { total: 0, correct: 0, earlyCorrect: 0 });
+    for (const id of Object.keys(progress)) delete progress[id];
+    save("rounds", history);
+    save("predictions", predictionStats);
+    save("skillProgress", progress);
+    lessonStatus.textContent = "Play progress reset.";
+    renderPrediction();
+    renderProgress();
+    renderLessons();
+  });
+  renderProgress();
   lessonCards.addEventListener("click", (event) => {
     const { lesson, shareLesson: share } = event.target.dataset;
     if (Object.hasOwn(BOT_LESSONS, lesson)) startLesson(lesson);

@@ -38,6 +38,7 @@ function scenarioFromUrl(url) {
   return {
     ...scenario,
     arenaMode,
+    opponents: params.get("opponents")?.split(",") || [],
     marketMode: legacyLink ? "classic" : (MARKET_MODES.includes(requestedMode) ? requestedMode : "players"),
     compatibilityNote: legacyLink ? "Older scenario link opened in Classic mode to preserve its original rules." : "",
   };
@@ -1719,6 +1720,11 @@ if (playModeInput && watchModeInput) {
   playModeInput.checked = initialScenario.arenaMode === "play";
   watchModeInput.checked = !playModeInput.checked;
 }
+const incomingOpponents = new Set(initialScenario.opponents);
+if (initialScenario.arenaMode === "play" && incomingOpponents.size === 3
+  && [...incomingOpponents].every((name) => BOT_NAMES.includes(name))) {
+  for (const name of BOT_NAMES) document.getElementById("opponent" + name).checked = incomingOpponents.has(name);
+}
 if (marketModeSelect) marketModeSelect.value = initialScenario.marketMode;
 game.reset(initialScenario.durationMs, initialScenario.seed, { marketMode: initialScenario.marketMode });
 if (compatibilityNoteEl) {
@@ -1830,7 +1836,13 @@ function scenarioUrl() {
   url.searchParams.set("duration", scenario.durationMs);
   url.searchParams.set("market", game.marketMode);
   url.searchParams.set("version", SIMULATION_VERSION);
-  if (game.humanSeated) url.searchParams.set("mode", "play");
+  if (game.humanSeated) {
+    url.searchParams.set("mode", "play");
+    const opponents = game.players.filter((player) => !player.isHuman).map((player) => player.name);
+    if (opponents.length === 3 && opponents.join(",") !== BOT_NAMES.slice(0, 3).join(",")) {
+      url.searchParams.set("opponents", opponents.join(","));
+    }
+  }
   return url.href;
 }
 
