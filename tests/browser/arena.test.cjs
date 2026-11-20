@@ -8,7 +8,8 @@ function load(url = 'https://example.test/figgie-rl/') {
   const element = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: id === 'speedSelect' ? '1' : id === 'durationSelect' ? '30000' : '7',
-      addEventListener() {}, focus() {}, select() {},
+      addEventListener(type, handler) { this[type === "click" ? "clickHandler" : type] = handler; }, focus() {}, select() {},
+      click() { this.clickHandler?.(); },
     });
     return elements.get(id);
   };
@@ -464,4 +465,14 @@ test('daily share text ignores hidden fields', () => {
   assert.match(shared, /🟩🟥⬜/);
   assert.match(shared, /\?daily=2026-11-21/);
   assert.doesNotMatch(shared, /Diamonds|1,2,3,4/);
+});
+
+test('daily round hides the seed field until the round ends', () => {
+  const { run, elements } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  elements.get('playDaily').click();
+  assert.equal(elements.get('seedInput').hidden, true);
+  assert.equal(elements.get('dailySeedLabel').hidden, false);
+  elements.get('playBtn').click();
+  assert.equal(elements.get('seedInput').hidden, false);
 });

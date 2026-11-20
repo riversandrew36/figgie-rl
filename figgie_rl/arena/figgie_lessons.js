@@ -266,7 +266,7 @@ function dailyShareText(result) {
   const squares = edges.slice(0, 40).map((edge) => edge > 0 ? "🟩" : edge < 0 ? "🟥" : "⬜").join("");
   return [
     `Figgie Learning Lab · Daily ${date}${practice ? " · practice" : ""}`,
-    `${coachMoney(profit)} · ${prediction} · ${edges.length} ${edges.length === 1 ? "trade" : "trades"} · streak ${streak}`,
+    `${coachMoney(profit)} · ${prediction} · ${edges.length} ${edges.length === 1 ? "trade" : "trades"} · ${streak}-day streak`,
     squares ? squares + (edges.length > 40 ? "…" : "") : "",
     DAILY_URL + "?daily=" + date,
   ].filter(Boolean).join("\n");
@@ -289,6 +289,10 @@ const arenaTeaching = (() => {
 
   function render() {
     renderPrediction();
+    const dailyRunning = Boolean(game.running && activeDaily?.hideSeed);
+    seedInput.hidden = dailyRunning;
+    byId("seedLabel").hidden = dailyRunning;
+    byId("dailySeedLabel").hidden = !dailyRunning;
     if (!game.revealGoal || !game.humanSeated) byId("roundCoach").hidden = true;
     const seat = humanPlayerIndex();
     read.hidden = !isPlayMode();
@@ -788,7 +792,7 @@ const arenaTeaching = (() => {
       : record.firstProfit === null ? "Scored attempt used · practice available"
         : `Played: ${coachMoney(record.firstProfit)} · practice available`;
     byId("dailyTitle").textContent = date === today ? "Today’s deal" : "Daily practice";
-    byId("dailyStatus").textContent = `${date} UTC · ${status} · ${streak.current} day streak` +
+    byId("dailyStatus").textContent = `${date} UTC · ${status} · ${streak.current}-day streak` +
       (canStoreDaily ? "" : " · Storage unavailable. Results won’t be saved.");
     const welcome = byId("welcomeBack");
     welcome.hidden = true;
@@ -797,7 +801,7 @@ const arenaTeaching = (() => {
       const passed = Object.values(progress).filter((lesson) => lesson.passed).length;
       if (strengthTracker.rounds || passed || streak.current || streak.best) {
         welcome.hidden = false;
-        welcome.textContent = `Welcome back · ${strengthTracker.rounds} rounds played · ${passed} lessons passed · ${streak.current} day daily streak`;
+        welcome.textContent = `Welcome back · ${strengthTracker.rounds} rounds played · ${passed} lessons passed · ${streak.current}-day daily streak`;
       }
     } catch { /* Storage is unavailable. */ }
   }
@@ -810,7 +814,7 @@ const arenaTeaching = (() => {
       days[date] = { firstProfit: null, best: null, called: null };
       persistDaily();
     }
-    pendingDaily = { date, scored };
+    pendingDaily = { date, scored, hideSeed: date === today };
     startFrontRound(dailySeed(date));
     renderFront();
   }
@@ -834,7 +838,7 @@ const arenaTeaching = (() => {
     byId("dailyResultSummary").textContent = `Profit ${coachMoney(profit)} · ${edges.length} trades · Best trade edge ${best}`;
     byId("dailyResultPrediction").textContent = (called === null ? "No goal prediction." : called ? "Goal called." : "Goal missed.") +
       (result.lockedTime ? ` Locked at ${result.lockedTime}.` : called === null ? "" : " Pick wasn’t locked.");
-    byId("dailyResultStreak").textContent = `Current streak ${streak.current} · best ${streak.best}` +
+    byId("dailyResultStreak").textContent = `Current: ${streak.current}-day streak · Best: ${streak.best}-day streak` +
       (canStoreDaily ? "" : " · Storage unavailable. This result wasn’t saved.");
     byId("dailyShareField").hidden = true;
     byId("dailyShareStatus").textContent = "";
