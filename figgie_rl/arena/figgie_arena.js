@@ -51,6 +51,11 @@ const MAJORITY_BONUS_ESTIMATE = 100.0;
 const durationSelect = document.getElementById("durationSelect");
 const seedInput = document.getElementById("seedInput");
 const marketModeSelect = document.getElementById("marketModeSelect");
+const watchModeInput = document.getElementById("watchModeInput");
+const playModeInput = document.getElementById("playModeInput");
+const opponentPickerEl = document.getElementById("opponentPicker");
+const keyboardHelpEl = document.getElementById("keyboardHelp");
+const humanActionHelpEl = document.getElementById("humanActionHelp");
 const speedSelect = document.getElementById("speedSelect");
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -93,6 +98,7 @@ class FiggieViewerGame {
     this.humanSeated = false;
     this.pausedDuringRound = false;
     this.lastActionMessage = "";
+    this.humanPriceDrafts = Array(SUITS.length).fill(8);
   }
 
   reset(durationMs, seed = 7, options = {}) {
@@ -150,7 +156,9 @@ class FiggieViewerGame {
 
   start(durationMs, seed, speed = 1, options = {}) {
     this.reset(durationMs, seed, options);
-    this.speed = speed;
+    this.speed = this.humanSeated ? 1 : speed;
+    this.clockStarted = Date.now();
+    this.clockOffset = 0;
     this.running = true;
     this.paused = false;
     this.schedule();
@@ -164,6 +172,10 @@ class FiggieViewerGame {
   }
 
   setPaused(paused) {
+    if (this.humanSeated && paused !== this.paused) {
+      if (paused) this.clockOffset = Math.max(this.elapsedMs, this.clockOffset + Date.now() - this.clockStarted);
+      else this.clockStarted = Date.now();
+    }
     this.paused = paused;
     if (paused && this.running && this.humanSeated) this.pausedDuringRound = true;
     if (paused && this.intervalId !== null) {
@@ -192,6 +204,7 @@ class FiggieViewerGame {
       return;
     }
 
+    const previousMessage = this.lastActionMessage;
     this.ageAndExpireQuotes();
     this.updateExternalBook();
     for (let i = 0; i < this.players.length; i += 1) {
@@ -200,8 +213,13 @@ class FiggieViewerGame {
       this.applyAction(i, action);
     }
 
+    const latest = this.roundLog.at(-1);
+    const involved = latest && latest.tick === this.tick
+      && (this.players[latest.buyerIdx]?.isHuman || this.players[latest.sellerIdx]?.isHuman);
+    this.lastActionMessage = involved ? latest.line : previousMessage;
     this.tick += 1;
-    this.elapsedMs += this.tickMs;
+    this.elapsedMs = this.humanSeated && !force
+      ? this.clockOffset + Date.now() - this.clockStarted : this.elapsedMs + this.tickMs;
     render();
 
     if (this.elapsedMs >= this.durationMs) {
@@ -280,8 +298,7 @@ class FiggieViewerGame {
         continue;
       }
       const quote = this.players[i].bidQuotes[suit];
-      if (quote > bestPrice || (quote === bestPrice && buyer !== null)
-        || (this.marketMode === "classic" && quote === bestPrice)) {
+      if (quote > bestPrice || (this.marketMode === "classic" && quote === bestPrice)) {
         bestPrice = quote;
         buyer = i;
       }
@@ -297,8 +314,7 @@ class FiggieViewerGame {
         continue;
       }
       const quote = this.players[i].askQuotes[suit];
-      if (quote < bestPrice || (quote === bestPrice && seller !== null)
-        || (this.marketMode === "classic" && quote === bestPrice)) {
+      if (quote < bestPrice || (this.marketMode === "classic" && quote === bestPrice)) {
         bestPrice = quote;
         seller = i;
       }
@@ -311,6 +327,10 @@ class FiggieViewerGame {
     if (!action || action.kind === "hold") {
       return;
     }
+    if (action.kind === "cancel") {
+      this.cancelQuotes(playerIdx, action.suit);
+      return true;
+    }
 
     const suit = action.suit;
     if (!Number.isInteger(suit) || suit < 0 || suit >= SUITS.length) {
@@ -319,13 +339,18 @@ class FiggieViewerGame {
 
     if (action.kind === "quote_bid") {
       if (this.marketMode === "players") {
+        const requestedPrice = Number(action.price);
+        if (!Number.isInteger(requestedPrice)) {
+          this.lastActionMessage = `${player.name}'s bid was rejected: enter an integer price.`;
+          return false;
+        }
         const price = this.quotePrice(action.kind, suit, action.price);
         if (!Number.isFinite(price) || player.cash < price) {
           this.lastActionMessage = `${player.name}'s bid at $${price} was rejected: insufficient cash.`;
           return false;
         }
         const ownAsk = player.askQuotes[suit];
-        if (Number.isFinite(ownAsk) && price >= ownAsk) {
+        if (player.isHuman && Number.isFinite(ownAsk) && price >= ownAsk) {
           this.lastActionMessage = `${player.name}'s bid at $${price} was rejected: it would cross their own offer.`;
           return false;
         }
@@ -348,13 +373,18 @@ class FiggieViewerGame {
 
     if (action.kind === "quote_ask") {
       if (this.marketMode === "players") {
+        const requestedPrice = Number(action.price);
+        if (!Number.isInteger(requestedPrice)) {
+          this.lastActionMessage = `${player.name}'s offer was rejected: enter an integer price.`;
+          return false;
+        }
         const price = this.quotePrice(action.kind, suit, action.price);
         if (player.inventory[suit] <= 0) {
           this.lastActionMessage = `${player.name}'s offer at $${price} was rejected: no ${SUITS[suit].name} card to back it.`;
           return false;
         }
         const ownBid = player.bidQuotes[suit];
-        if (Number.isFinite(ownBid) && price <= ownBid) {
+        if (player.isHuman && Number.isFinite(ownBid) && price <= ownBid) {
           this.lastActionMessage = `${player.name}'s offer at $${price} was rejected: it would cross their own bid.`;
           return false;
         }
@@ -391,7 +421,12 @@ class FiggieViewerGame {
           return;
         }
       }
+      if (player.cash < ask.price) {
+        this.lastActionMessage = `${player.name} could not buy ${SUITS[suit].name} at $${ask.price}: insufficient cash.`;
+        return false;
+      }
       this.trade(playerIdx, seller, suit, ask.price, "buy");
+      this.lastActionMessage = `${player.name} bought ${SUITS[suit].name} from ${this.players[seller].name} at $${ask.price}.`;
       return true;
     }
 
@@ -411,7 +446,12 @@ class FiggieViewerGame {
           return;
         }
       }
+      if (player.inventory[suit] <= 0) {
+        this.lastActionMessage = `${player.name} could not sell ${SUITS[suit].name}: no card to sell.`;
+        return false;
+      }
       this.trade(buyer, playerIdx, suit, bid.price, "sell");
+      this.lastActionMessage = `${player.name} sold ${SUITS[suit].name} to ${this.players[buyer].name} at $${bid.price}.`;
       return true;
     }
     return false;
@@ -497,7 +537,20 @@ class FiggieViewerGame {
     }
   }
 
-  loadDeal({ inventories, goalSuitIdx, startingCash = this.startingCash, ante = this.ante, marketMode = "players" }) {
+  cancelQuotes(playerIdx, suit = null) {
+    const player = this.players[playerIdx];
+    const suits = Number.isInteger(suit) ? [suit] : SUITS.map((_, idx) => idx);
+    for (const idx of suits) {
+      if (idx < 0 || idx >= SUITS.length) continue;
+      player.bidQuotes[idx] = -Infinity;
+      player.askQuotes[idx] = Infinity;
+      player.bidQuoteAges[idx] = -1;
+      player.askQuoteAges[idx] = -1;
+    }
+    this.lastActionMessage = `${player.name} cancelled resting quotes${Number.isInteger(suit) ? ` for ${SUITS[suit].name}` : ""}.`;
+  }
+
+  loadDeal({ inventories, goalSuitIdx, startingCash = this.startingCash, ante = this.ante, marketMode = "players", playerSpecs }) {
     if (!Array.isArray(inventories) || inventories.length !== 4
       || inventories.some((hand) => !Array.isArray(hand) || hand.length !== SUITS.length)) {
       throw new Error("loadDeal expects four four-suit inventories");
@@ -509,8 +562,11 @@ class FiggieViewerGame {
     this.cashAfterAnte = this.startingCash - this.ante;
     this.antePot = 4 * this.ante;
     this.potRemaining = this.antePot;
-    this.players = BOT_NAMES.map((name, idx) => ({
-      name, strategy: idx, style: BOT_STYLES[idx],
+    const specs = playerSpecs || BOT_NAMES.map((name, strategy) => ({ name, strategy }));
+    this.humanSeated = specs.some((player) => player.isHuman);
+    this.players = specs.map((spec, idx) => ({
+      name: spec.name, strategy: spec.strategy, style: spec.style || BOT_STYLES[spec.strategy] || "Human player",
+      isHuman: Boolean(spec.isHuman),
       inventory: inventories[idx].map(Number),
       initialInventory: inventories[idx].map(Number),
       cash: this.cashAfterAnte, tradingCashflow: null,
@@ -858,7 +914,7 @@ class FiggieViewerGame {
     let quote = this.clipPlayerQuote(price, player, true);
     const ownAsk = player.askQuotes[suit];
     if (quote !== null && Number.isFinite(ownAsk) && quote >= ownAsk) {
-      quote = this.clipPlayerQuote(ownAsk - 1, player, true);
+      quote = ownAsk <= PRICE_FLOOR ? null : this.clipPlayerQuote(ownAsk - 1, player, true);
     }
     return quote === null ? { kind: "hold" } : { kind: "quote_bid", suit, price: quote };
   }
@@ -869,7 +925,7 @@ class FiggieViewerGame {
     let quote = this.clipPlayerQuote(price, player, false);
     const ownBid = player.bidQuotes[suit];
     if (quote !== null && Number.isFinite(ownBid) && quote <= ownBid) {
-      quote = this.clipPlayerQuote(ownBid + 1, player, false);
+      quote = ownBid >= PRICE_CAP ? null : this.clipPlayerQuote(ownBid + 1, player, false);
     }
     return quote === null ? { kind: "hold" } : { kind: "quote_ask", suit, price: quote };
   }
@@ -1078,14 +1134,16 @@ function goalSuitPosterior(hand) {
 
 const game = new FiggieViewerGame();
 const STRENGTH_STORAGE_KEY = "figgie_strength_tracker_v2";
+const TRACKER_NAMES = [...BOT_NAMES, "You"];
 
 function createDefaultStrengthTracker() {
   return {
     rounds: 0,
-    bots: BOT_NAMES.map((name) => ({
+    bots: TRACKER_NAMES.map((name) => ({
       name,
       rating: 1000,
       wins: 0,
+      roundsPlayed: 0,
       totalBankroll: 0,
       lastBankroll: 0,
       history: [1000],
@@ -1105,21 +1163,27 @@ function loadStrengthTracker() {
       parsed === null ||
       typeof parsed.rounds !== "number" ||
       !Array.isArray(parsed.bots) ||
-      parsed.bots.length !== BOT_NAMES.length
+      parsed.bots.length < BOT_NAMES.length
     ) {
       return createDefaultStrengthTracker();
     }
 
-    const sanitizedBots = parsed.bots.map((bot, idx) => ({
-      name: BOT_NAMES[idx],
-      rating: Number.isFinite(bot?.rating) ? bot.rating : 1000,
-      wins: Number.isFinite(bot?.wins) ? bot.wins : 0,
-      totalBankroll: Number.isFinite(bot?.totalBankroll) ? bot.totalBankroll : 0,
-      lastBankroll: Number.isFinite(bot?.lastBankroll) ? bot.lastBankroll : 0,
-      history: Array.isArray(bot?.history) && bot.history.length > 0
-        ? bot.history.filter((x) => Number.isFinite(x)).slice(-40)
-        : [1000],
-    }));
+    const sanitizedBots = TRACKER_NAMES.map((name) => {
+      const bot = parsed.bots.find((entry) => entry?.name === name)
+        || parsed.bots[TRACKER_NAMES.indexOf(name)];
+      return {
+        name,
+        rating: Number.isFinite(bot?.rating) ? bot.rating : 1000,
+        wins: Number.isFinite(bot?.wins) ? bot.wins : 0,
+        roundsPlayed: Number.isFinite(bot?.roundsPlayed)
+          ? bot.roundsPlayed : (name === "You" ? 0 : parsed.rounds),
+        totalBankroll: Number.isFinite(bot?.totalBankroll) ? bot.totalBankroll : 0,
+        lastBankroll: Number.isFinite(bot?.lastBankroll) ? bot.lastBankroll : 0,
+        history: Array.isArray(bot?.history) && bot.history.length > 0
+          ? bot.history.filter((x) => Number.isFinite(x)).slice(-40)
+          : [1000],
+      };
+    });
 
     return {
       rounds: Math.max(0, parsed.rounds),
@@ -1151,13 +1215,14 @@ const strengthTracker = loadStrengthTracker();
 
 function updateStrengthTracker() {
   const kFactor = 24;
-  const deltas = Array(game.players.length).fill(0);
   const finals = game.players.map((p) => p.cash);
+  const stats = new Map(strengthTracker.bots.map((bot) => [bot.name, bot]));
+  const deltas = new Map(game.players.map((player) => [player.name, 0]));
 
   for (let i = 0; i < finals.length; i += 1) {
     for (let j = i + 1; j < finals.length; j += 1) {
-      const ratingI = strengthTracker.bots[i].rating;
-      const ratingJ = strengthTracker.bots[j].rating;
+      const ratingI = stats.get(game.players[i].name).rating;
+      const ratingJ = stats.get(game.players[j].name).rating;
       const expectedI = 1 / (1 + 10 ** ((ratingJ - ratingI) / 400));
       let actualI = 0.5;
       if (finals[i] > finals[j]) {
@@ -1166,19 +1231,20 @@ function updateStrengthTracker() {
         actualI = 0.0;
       }
       const change = kFactor * (actualI - expectedI);
-      deltas[i] += change;
-      deltas[j] -= change;
+      deltas.set(game.players[i].name, deltas.get(game.players[i].name) + change);
+      deltas.set(game.players[j].name, deltas.get(game.players[j].name) - change);
     }
   }
 
   strengthTracker.rounds += 1;
   const winShare = game.winnerIdxs.length > 0 ? 1 / game.winnerIdxs.length : 0;
 
-  for (let i = 0; i < strengthTracker.bots.length; i += 1) {
-    const bot = strengthTracker.bots[i];
-    bot.rating = Math.max(100, bot.rating + deltas[i]);
+  for (let i = 0; i < game.players.length; i += 1) {
+    const bot = stats.get(game.players[i].name);
+    bot.rating = Math.max(100, bot.rating + deltas.get(game.players[i].name));
     bot.totalBankroll += finals[i];
     bot.lastBankroll = finals[i];
+    bot.roundsPlayed += 1;
     if (game.winnerIdxs.includes(i)) {
       bot.wins += winShare;
     }
@@ -1197,8 +1263,8 @@ function renderStrengthTracker() {
     .sort((a, b) => b.rating - a.rating);
 
   strengthRowsEl.innerHTML = ranked.map((bot, rankIdx) => {
-    const winRate = strengthTracker.rounds > 0 ? (100 * bot.wins) / strengthTracker.rounds : 0;
-    const avgBankroll = strengthTracker.rounds > 0 ? bot.totalBankroll / strengthTracker.rounds : 0;
+    const winRate = bot.roundsPlayed > 0 ? (100 * bot.wins) / bot.roundsPlayed : 0;
+    const avgBankroll = bot.roundsPlayed > 0 ? bot.totalBankroll / bot.roundsPlayed : 0;
     const trendBase = bot.history[Math.max(0, bot.history.length - 6)];
     const trend = bot.rating - trendBase;
     const trendClass = trend >= 0 ? "pos" : "neg";
@@ -1224,9 +1290,132 @@ function formatTime(ms) {
   return `${m}:${s}`;
 }
 
+let selectedSuitIdx = 0;
+let selectedQuoteSide = "quote_bid";
+
+function isPlayMode() {
+  return Boolean(playModeInput?.checked);
+}
+
+function selectedOpponents() {
+  return BOT_NAMES.filter((name) => document.getElementById(`opponent${name}`)?.checked);
+}
+
+function playerSpecsForMode(playMode = isPlayMode()) {
+  if (!playMode) return BOT_NAMES.map((name, strategy) => ({ name, strategy }));
+  const opponents = selectedOpponents();
+  if (opponents.length !== 3) return null;
+  return [
+    { name: "You", strategy: -1, style: "Human player", isHuman: true },
+    ...opponents.map((name) => ({ name, strategy: BOT_NAMES.indexOf(name) })),
+  ];
+}
+
+function clearExplanation() {
+  const section = document.getElementById("round-explanation");
+  section.hidden = true;
+  document.getElementById("settlementExplanation").textContent = "";
+  for (const id of ["humanPayout", "payoutRows", "beliefRows", "tradeHighlights"]) {
+    document.getElementById(id).innerHTML = "";
+  }
+}
+
+function refreshModePreview() {
+  if (game.running) return;
+  const playMode = isPlayMode();
+  const playerSpecs = playerSpecsForMode(playMode);
+  const validLineup = !playMode || playerSpecs !== null;
+  const marketMode = playMode ? "players" : (MARKET_MODES.includes(marketModeSelect?.value) ? marketModeSelect.value : "players");
+  game.marketMode = marketMode;
+  if (marketModeSelect) {
+    marketModeSelect.value = marketMode;
+    marketModeSelect.disabled = playMode;
+  }
+  if (opponentPickerEl) opponentPickerEl.hidden = !playMode;
+  if (keyboardHelpEl) keyboardHelpEl.hidden = !playMode;
+  speedSelect.disabled = playMode;
+  playBtn.disabled = !validLineup;
+  downloadBtn.disabled = true;
+  if (validLineup) {
+    game.reset(durationSelect.value, seedInput.value, {
+      marketMode,
+      humanSeated: playMode,
+      playerSpecs: playerSpecs || undefined,
+    });
+    if (humanActionHelpEl) humanActionHelpEl.textContent = "";
+  } else {
+    game.humanSeated = true;
+    if (humanActionHelpEl) humanActionHelpEl.textContent = "Select exactly three opponents to start a Play-mode round.";
+  }
+  clearExplanation();
+  render();
+}
+
+function humanPlayerIndex() {
+  return game.players.findIndex((player) => player.isHuman);
+}
+
+function humanActionMarkup(suit, suitIdx, playerIdx) {
+  const player = game.players[playerIdx];
+  const bestAsk = game.bestAsk(suitIdx, playerIdx);
+  const bestBid = game.bestBid(suitIdx, playerIdx);
+  const bidPrice = Number(game.humanPriceDrafts[suitIdx]);
+  const hasAsk = bestAsk.seller !== null;
+  const hasBid = bestBid.buyer !== null;
+  const canBuy = game.running && hasAsk && player.cash >= bestAsk.price;
+  const canSell = game.running && hasBid && player.inventory[suitIdx] > 0;
+  const validPrice = Number.isInteger(bidPrice) && bidPrice >= PRICE_FLOOR && bidPrice <= PRICE_CAP;
+  const ownBid = player.bidQuotes[suitIdx];
+  const ownAsk = player.askQuotes[suitIdx];
+  const bidRejected = !game.running || !validPrice || player.cash < bidPrice
+    || (Number.isFinite(ownAsk) && bidPrice >= ownAsk);
+  const offerRejected = !game.running || !validPrice || player.inventory[suitIdx] <= 0
+    || (Number.isFinite(ownBid) && bidPrice <= ownBid);
+  const buyWhy = !hasAsk ? "No player offer is resting." : !canBuy ? `You need $${bestAsk.price.toFixed(0)} cash to buy at this offer.` : "Buy at the best resting offer.";
+  const sellWhy = !hasBid ? "No player bid is resting." : !canSell ? `You have no ${suit.name} card to sell.` : "Sell at the best resting bid.";
+  const bidWhy = !validPrice ? "Enter an integer price from $1 to $60." : player.cash < bidPrice ? "Your cash does not cover this bid." : bidRejected ? "This bid would cross your own offer." : "Post a cash-backed bid.";
+  const offerWhy = !validPrice ? "Enter an integer price from $1 to $60." : player.inventory[suitIdx] <= 0 ? `You have no ${suit.name} card to back this offer.` : offerRejected ? "This offer would cross your own bid." : "Post a card-backed offer.";
+  const hasOwnQuote = Number.isFinite(ownBid) || Number.isFinite(ownAsk);
+  const selected = suitIdx === selectedSuitIdx ? " selected-suit" : "";
+  return `
+    <div class="human-controls${selected}">
+      <span class="your-card-count">Your cards: <strong>${player.inventory[suitIdx]}</strong></span>
+      <div class="human-action-grid">
+        <button type="button" data-human-action="buy" data-suit="${suitIdx}" title="${buyWhy}" aria-describedby="humanActionHelp" ${canBuy ? "" : "disabled"}>Buy</button>
+        <button type="button" data-human-action="sell" data-suit="${suitIdx}" title="${sellWhy}" aria-describedby="humanActionHelp" ${canSell ? "" : "disabled"}>Sell</button>
+        <label class="price-label">Price
+          <input class="human-price" data-suit="${suitIdx}" type="number" min="1" max="60" step="1" value="${game.humanPriceDrafts[suitIdx]}" aria-label="Price for ${suit.name}" aria-describedby="humanActionHelp" />
+        </label>
+        <button type="button" data-human-action="quote_bid" data-suit="${suitIdx}" title="${bidWhy}" aria-describedby="humanActionHelp" ${bidRejected ? "disabled" : ""}>Bid</button>
+        <button type="button" data-human-action="quote_ask" data-suit="${suitIdx}" title="${offerWhy}" aria-describedby="humanActionHelp" ${offerRejected ? "disabled" : ""}>Offer</button>
+        <button type="button" class="cancel-quote" data-human-action="cancel" data-suit="${suitIdx}" title="Cancel your resting bid and offer for ${suit.name}." aria-describedby="humanActionHelp" ${game.running && hasOwnQuote ? "" : "disabled"}>Cancel quotes</button>
+      </div>
+    </div>`;
+}
+
+function performHumanAction(kind, suitIdx) {
+  const playerIdx = humanPlayerIndex();
+  if (playerIdx < 0 || !game.running || !Number.isInteger(suitIdx)) return;
+  if (kind === "quote_bid" || kind === "quote_ask") {
+    selectedQuoteSide = kind;
+    game.humanPriceDrafts[suitIdx] = Number(document.querySelector?.(`.human-price[data-suit="${suitIdx}"]`)?.value);
+    game.applyAction(playerIdx, { kind, suit: suitIdx, price: game.humanPriceDrafts[suitIdx] });
+  } else if (kind === "cancel") {
+    game.cancelQuotes(playerIdx, suitIdx);
+  } else {
+    game.applyAction(playerIdx, { kind, suit: suitIdx });
+    if (kind === "buy" || kind === "sell") selectedQuoteSide = kind === "buy" ? "quote_bid" : "quote_ask";
+  }
+  selectedSuitIdx = suitIdx;
+  if (humanActionHelpEl) humanActionHelpEl.textContent = game.lastActionMessage;
+  render();
+}
+
 function render() {
   timerEl.textContent = `Time Left: ${formatTime(game.timeRemainingMs())}`;
-  statusEl.textContent = `Status: ${game.paused ? "Paused" : game.running ? "Running" : "Stopped"}`;
+  statusEl.textContent = game.humanSeated && game.lastActionMessage
+    ? `Status: ${game.lastActionMessage}`
+    : `Status: ${game.paused && game.humanSeated ? "Practice paused" : game.paused ? "Paused" : game.running ? "Running" : "Stopped"}`;
   potEl.textContent = game.revealGoal
     ? `Pot: Settled ($${game.goalBonusPaid.toFixed(0)} cards + $${game.majorityPaid.toFixed(0)} majority)`
     : `Pot: $${game.antePot.toFixed(0)} locked`;
@@ -1239,7 +1428,9 @@ function render() {
     statusEl.textContent = `Status: Ready (Start $${game.startingCash.toFixed(0)}, Ante $${game.ante.toFixed(0)})`;
   }
 
-  marketGridEl.innerHTML = SUITS.map((suit, idx) => {
+  const playerIdx = humanPlayerIndex();
+  marketGridEl.classList?.toggle("play-market", game.humanSeated);
+  const boardMarkup = SUITS.map((suit, idx) => {
     const tapeHead = game.tradeTape[0];
     const isTrade = tapeHead && tapeHead.suit === idx;
     const bestBid = game.bestBid(idx, -1);
@@ -1249,7 +1440,7 @@ function render() {
     const bidPrice = Number.isFinite(bestBid.price) ? `$${bestBid.price.toFixed(0)}` : "—";
     const askPrice = Number.isFinite(bestAsk.price) ? `$${bestAsk.price.toFixed(0)}` : "—";
     return `
-      <article class="suit-card ${isTrade ? "trade-flash" : ""}">
+      <article class="suit-card ${isTrade ? "trade-flash" : ""} ${idx === selectedSuitIdx && game.humanSeated ? "selected-suit" : ""}">
         <div class="suit-head">
           <span>${suit.name} ${suit.symbol}</span>
           <span>${game.lastTradeSignedVolume[idx] > 0 ? "↑" : game.lastTradeSignedVolume[idx] < 0 ? "↓" : "•"}</span>
@@ -1259,27 +1450,58 @@ function render() {
           Ask ${askPrice} · ${askOwner}<br />
           Last ${game.lastTradePrice[idx] ? `$${game.lastTradePrice[idx].toFixed(0)}` : "—"}
         </div>
+        ${game.humanSeated && playerIdx >= 0 ? humanActionMarkup(suit, idx, playerIdx) : ""}
       </article>
     `;
   }).join("");
+
+  if (game.humanSeated && marketGridEl.firstElementChild?.querySelector(".human-controls") && playerIdx >= 0) {
+    const template = document.createElement("template");
+    template.innerHTML = boardMarkup;
+    [...template.content.children].forEach((next, suit) => {
+      const current = marketGridEl.children[suit];
+      current.className = next.className;
+      for (const selector of [".suit-head", ".suit-meta", ".your-card-count"]) {
+        current.querySelector(selector).innerHTML = next.querySelector(selector).innerHTML;
+      }
+      current.querySelectorAll("button").forEach((button, index) => {
+        const updated = next.querySelectorAll("button")[index];
+        button.disabled = updated.disabled;
+        button.title = updated.title;
+      });
+      const input = current.querySelector(".human-price");
+      const price = String(game.humanPriceDrafts[suit]);
+      if (input.value !== price) input.value = price;
+    });
+  } else {
+    marketGridEl.innerHTML = boardMarkup;
+  }
 
   botRowsEl.innerHTML = game.players.map((bot, idx) => {
     const mtm = game.markToMarket(bot);
     const recent = game.tradeTape[0];
     const flash = recent && (recent.buyerIdx === idx || recent.sellerIdx === idx) ? "bot-flash" : "";
     const winnerClass = game.revealGoal && game.winnerIdxs.includes(idx) ? "winner-row" : "";
+    const hidden = game.humanSeated && !game.revealGoal && !bot.isHuman;
+    const inventoryText = hidden ? `${bot.inventory.reduce((sum, count) => sum + count, 0)} cards` : bot.inventory.join(" / ");
     return `
       <tr class="${flash} ${winnerClass}">
-        <td>${bot.name}<span class="bot-style">${bot.style}</span></td>
-        <td>${bot.cash.toFixed(2)}</td>
-        <td class="${mtm >= 0 ? "pos" : "neg"}">${mtm.toFixed(2)}</td>
+        <td>${bot.name}${hidden ? "" : `<span class="bot-style">${bot.style}</span>`}</td>
+        <td>${hidden ? "Hidden" : bot.cash.toFixed(2)}</td>
+        <td class="${hidden ? "" : mtm >= 0 ? "pos" : "neg"}">${hidden ? "Hidden" : mtm.toFixed(2)}</td>
         <td>${bot.trades}</td>
-        <td>${bot.inventory.join(" / ")}</td>
+        <td>${inventoryText}</td>
       </tr>
     `;
   }).join("");
 
   tapeEl.innerHTML = game.tradeTape.map((t) => `<li>${t.line}</li>`).join("");
+  if (humanActionHelpEl) {
+    humanActionHelpEl.textContent = game.humanSeated && playerIdx >= 0
+      ? (game.lastActionMessage || `Selected ${SUITS[selectedSuitIdx].name}; You hold ${game.players[playerIdx].inventory[selectedSuitIdx]} card(s). Quotes must be backed by cash or a card.`)
+      : "";
+  }
+  if (keyboardHelpEl) keyboardHelpEl.hidden = !isPlayMode();
   renderStrengthTracker();
 }
 
@@ -1287,7 +1509,13 @@ function onRoundEnded() {
   playBtn.textContent = "Play";
   durationSelect.disabled = false;
   seedInput.disabled = false;
+  marketModeSelect.disabled = isPlayMode();
+  playModeInput.disabled = false;
+  watchModeInput.disabled = false;
+  document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = false; });
+  speedSelect.disabled = isPlayMode();
   pauseBtn.disabled = true;
+  pauseBtn.textContent = isPlayMode() ? "Practice pause" : "Pause";
   stepBtn.disabled = true;
   downloadBtn.disabled = false;
   updateStrengthTracker();
@@ -1304,9 +1532,14 @@ playBtn.addEventListener("click", () => {
     playBtn.textContent = "Play";
     durationSelect.disabled = false;
     seedInput.disabled = false;
+    marketModeSelect.disabled = isPlayMode();
+    playModeInput.disabled = false;
+    watchModeInput.disabled = false;
+    document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = false; });
+    speedSelect.disabled = isPlayMode();
     pauseBtn.disabled = true;
     stepBtn.disabled = true;
-    downloadBtn.disabled = game.roundLog.length === 0;
+    downloadBtn.disabled = game.humanSeated || game.roundLog.length === 0;
     summaryEl.textContent = "Round stopped before settlement.";
     render();
     return;
@@ -1315,26 +1548,39 @@ playBtn.addEventListener("click", () => {
   const scenario = normalizeScenario(seedInput.value, durationSelect.value);
   const selectedMs = scenario.durationMs;
   const selectedSeed = scenario.seed;
+  const playMode = isPlayMode();
+  const playerSpecs = playerSpecsForMode(playMode);
+  if (!playerSpecs) {
+    if (humanActionHelpEl) humanActionHelpEl.textContent = "Select exactly three opponents to start a Play-mode round.";
+    return;
+  }
+  const marketMode = playMode ? "players" : (MARKET_MODES.includes(marketModeSelect.value) ? marketModeSelect.value : "players");
   seedInput.value = selectedSeed;
   durationSelect.value = selectedMs;
-  document.getElementById("round-explanation").hidden = true;
-  const selectedSpeed = Number(speedSelect.value);
+  clearExplanation();
+  const selectedSpeed = playMode ? 1 : Number(speedSelect.value);
   durationSelect.disabled = true;
   seedInput.disabled = true;
+  marketModeSelect.disabled = true;
+  playModeInput.disabled = true;
+  watchModeInput.disabled = true;
+  document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = true; });
+  speedSelect.disabled = playMode;
   playBtn.textContent = "Stop";
-  pauseBtn.textContent = "Pause";
+  pauseBtn.textContent = playMode ? "Practice pause" : "Pause";
   pauseBtn.disabled = false;
   stepBtn.disabled = true;
   downloadBtn.disabled = true;
-  summaryEl.textContent = `Round in progress... each bot starts with $${game.startingCash.toFixed(0)} and posts a $${game.ante.toFixed(0)} ante (cash at open: $${game.cashAfterAnte.toFixed(0)}).`;
-  game.start(selectedMs, selectedSeed, selectedSpeed);
+  summaryEl.textContent = `Round in progress... each player starts with $${game.startingCash.toFixed(0)} and posts a $${game.ante.toFixed(0)} ante (cash at open: $${game.cashAfterAnte.toFixed(0)}).`;
+  game.start(selectedMs, selectedSeed, selectedSpeed, { marketMode, humanSeated: playMode, playerSpecs });
   render();
+  if (playMode) marketGridEl.focus();
 });
 
 pauseBtn.addEventListener("click", () => {
   game.setPaused(!game.paused);
-  pauseBtn.textContent = game.paused ? "Resume" : "Pause";
-  stepBtn.disabled = !game.paused;
+  pauseBtn.textContent = game.paused ? "Resume" : isPlayMode() ? "Practice pause" : "Pause";
+  stepBtn.disabled = isPlayMode() || !game.paused;
   render();
 });
 
@@ -1343,11 +1589,84 @@ stepBtn.addEventListener("click", () => {
 });
 
 speedSelect.addEventListener("change", () => {
+  if (game.humanSeated) return;
   game.speed = Number(speedSelect.value);
   if (game.running && !game.paused) {
     game.schedule();
   }
 });
+
+watchModeInput.addEventListener("change", refreshModePreview);
+playModeInput.addEventListener("change", refreshModePreview);
+document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => {
+  input.addEventListener("change", refreshModePreview);
+});
+
+marketGridEl.addEventListener("input", (event) => {
+  const input = event.target.closest?.(".human-price");
+  if (!input) return;
+  const suit = Number(input.dataset.suit);
+  if (Number.isInteger(suit)) {
+    selectedSuitIdx = suit;
+    game.humanPriceDrafts[suit] = input.value;
+    render();
+  }
+});
+
+marketGridEl.addEventListener("click", (event) => {
+  const button = event.target.closest?.("[data-human-action]");
+  if (!button) return;
+  performHumanAction(button.dataset.humanAction, Number(button.dataset.suit));
+});
+
+if (document.addEventListener) {
+  document.addEventListener("keydown", (event) => {
+    if (!isPlayMode() || !game.running) return;
+    const tag = event.target?.tagName?.toLowerCase();
+    const editing = tag === "input" || tag === "select" || tag === "textarea";
+    const key = event.key.toLowerCase();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      performHumanAction("cancel", selectedSuitIdx);
+      return;
+    }
+    if (editing && !["[", "]", "enter"].includes(key)) return;
+    if (/^[1-4]$/.test(event.key)) {
+      selectedSuitIdx = Number(event.key) - 1;
+      event.preventDefault();
+      render();
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      selectedSuitIdx = (selectedSuitIdx + 1) % SUITS.length;
+      event.preventDefault();
+      render();
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      selectedSuitIdx = (selectedSuitIdx + SUITS.length - 1) % SUITS.length;
+      event.preventDefault();
+      render();
+    } else if (key === "b") {
+      event.preventDefault();
+      performHumanAction("buy", selectedSuitIdx);
+    } else if (key === "s") {
+      event.preventDefault();
+      performHumanAction("sell", selectedSuitIdx);
+    } else if (key === "o") {
+      selectedQuoteSide = "quote_ask";
+      if (humanActionHelpEl) humanActionHelpEl.textContent = "Offer selected. Press Enter to post at the selected price.";
+    } else if (key === "i") {
+      selectedQuoteSide = "quote_bid";
+      if (humanActionHelpEl) humanActionHelpEl.textContent = "Bid selected. Press Enter to post at the selected price.";
+    } else if (event.key === "[" || event.key === "]") {
+      const delta = event.key === "]" ? 1 : -1;
+      game.humanPriceDrafts[selectedSuitIdx] = Math.min(PRICE_CAP, Math.max(PRICE_FLOOR,
+        Number(game.humanPriceDrafts[selectedSuitIdx]) + delta));
+      event.preventDefault();
+      render();
+    } else if (key === "enter" && !event.target.closest?.("button")) {
+      event.preventDefault();
+      performHumanAction(selectedQuoteSide, selectedSuitIdx);
+    }
+  });
+}
 
 downloadBtn.addEventListener("click", () => {
   const payload = roundPayload(game);
@@ -1376,12 +1695,14 @@ if (compatibilityNoteEl) {
   compatibilityNoteEl.textContent = initialScenario.compatibilityNote;
   compatibilityNoteEl.hidden = !initialScenario.compatibilityNote;
 }
-if (marketModeSelect) {
-  marketModeSelect.addEventListener("change", () => {
-    game.marketMode = MARKET_MODES.includes(marketModeSelect.value) ? marketModeSelect.value : "players";
-    render();
-  });
-}
+marketModeSelect.addEventListener("change", () => {
+  if (isPlayMode()) {
+    marketModeSelect.value = "players";
+    return;
+  }
+  refreshModePreview();
+});
+refreshModePreview();
 render();
 
 
@@ -1425,6 +1746,19 @@ function roundPayload(round) {
 
 function renderExplanation(round) {
   const dollars = (value) => `${value < 0 ? "−" : ""}$${Math.abs(value).toFixed(2)}`;
+  const yourPayout = document.getElementById("humanPayout");
+  const human = round.players.find((player) => player.isHuman);
+  yourPayout.hidden = !human;
+  if (human) {
+    const p = payoutBreakdown(round, human);
+    yourPayout.innerHTML = `<h3>Your settlement</h3>
+      <dl class="personal-payout">
+        <div><dt>Net trades</dt><dd>${dollars(p.netTradingCashflow)}</dd></div>
+        <div><dt>Goal cards</dt><dd>${dollars(p.goalCardPayout)}</dd></div>
+        <div><dt>Majority share</dt><dd>${dollars(p.majorityPayout)}</dd></div>
+        <div><dt>Profit from ${dollars(p.startingCash)}</dt><dd>${dollars(p.netProfit)}</dd></div>
+      </dl>`;
+  }
   const highest = Math.max(...round.players.map((p) => p.cash));
   const leaders = round.players.filter((p) => Math.abs(p.cash - highest) < 1e-9);
   document.getElementById("round-explanation").hidden = false;

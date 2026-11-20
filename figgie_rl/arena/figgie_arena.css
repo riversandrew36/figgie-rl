@@ -94,6 +94,30 @@ body::before {
   align-items: center;
 }
 
+.mode-toggle,
+.opponent-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+}
+
+.mode-toggle legend,
+.opponent-picker legend { color: var(--muted); padding: 0 0.3rem; }
+.mode-toggle label,
+.opponent-picker label { display: inline-flex; align-items: center; gap: 0.35rem; }
+.mode-toggle input,
+.opponent-picker input { width: auto; margin: 0; accent-color: var(--accent); }
+.play-links { font-size: 0.78rem; line-height: 1.4; }
+.attribution { line-height: 1.5; }
+.compatibility-note { border-left: 3px solid var(--accent); padding: 0.55rem 0.75rem; background: #ffd16614; }
+.keyboard-help { color: var(--muted); font-size: 0.85rem; }
+.keyboard-help p { margin-bottom: 0; }
+
 select,
 input,
 button {
@@ -187,6 +211,15 @@ input {
   background: #03211d91;
   transition: transform 130ms ease, box-shadow 130ms ease;
 }
+
+.selected-suit { border-color: var(--accent); box-shadow: 0 0 0 1px #ffd16666 inset; }
+.human-controls { margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid #ffffff22; }
+.your-card-count { display: block; margin-bottom: 0.45rem; color: var(--text); font-size: 0.82rem; }
+.human-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.human-action-grid button { min-height: 44px; padding: 0.55rem 0.45rem; font-size: 0.78rem; }
+.human-action-grid .cancel-quote { grid-column: 1 / -1; }
+.price-label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--muted); }
+.human-price { width: 100%; min-width: 0; min-height: 44px; padding: 0.45rem; }
 
 .suit-card.trade-flash {
   transform: translateY(-2px) scale(1.01);
@@ -396,6 +429,28 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
   .shell { width: calc(100% - 1rem); }
   .controls { gap: 0.6rem; }
   .controls button { min-height: 44px; }
+  .controls label { width: auto; }
+  .mode-toggle, .opponent-picker { gap: 0.55rem; }
+  .play-links { flex-basis: 100%; }
+  .market { padding: 0.65rem; }
+  .suit-card { padding: 0.6rem; }
+  .human-action-grid { gap: 0.35rem; }
+  .human-action-grid button { min-width: 0; overflow-wrap: anywhere; }
+  .status-row { gap: 0.55rem; font-size: 0.78rem; }
   .entry-links a { padding-top: 0.7rem; padding-bottom: 0.7rem; }
+  .attribution { overflow-wrap: anywhere; }
+  table { font-size: 0.74rem; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.personal-payout { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 0.5rem; }
+.personal-payout > div { padding: 0.6rem; border: 1px solid var(--line); border-radius: 10px; }
+.personal-payout dt { color: var(--muted); font-size: 0.8rem; }
+.personal-payout dd { margin: 0; font-weight: 700; }
+.mode-toggle label, .opponent-picker label { min-height: 44px; }
+.play-market { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 601px) {
+  .play-market .suit-card { display: grid; grid-template-columns: minmax(85px, 0.6fr) minmax(100px, 0.7fr) minmax(0, 1.5fr); gap: 0.65rem; align-items: start; }
+  .play-market .suit-head { gap: 0.3rem; }
+  .play-market .human-controls { margin: 0; padding: 0; border: 0; box-shadow: none; }
+}

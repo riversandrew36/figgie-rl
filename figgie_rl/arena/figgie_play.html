@@ -14,9 +14,10 @@
       <p class="eyebrow">OPEN REINFORCEMENT-LEARNING LAB</p>
       <h1>Figgie Learning Lab</h1>
       <p class="lead">Explore trading strategies. Train agents. Study how they learn with hidden information.</p>
-      <p>Start by watching four scripted baselines trade. Pause the market, inspect a round, then take the experiment into Python to train and evaluate a PPO agent.</p>
+      <p>Play a round yourself or watch four scripted baselines trade. Inspect settlement, then take the experiment into Python to train and evaluate a PPO agent.</p>
+      <p class="small attribution">Independent educational implementation, not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.</p>
       <nav class="entry-links" aria-label="Start exploring">
-        <a class="primary-link" href="#arena">Watch a round ↓</a>
+        <a class="primary-link" href="#arena">Play or watch a round ↓</a>
         <a href="#how-it-works">How it works</a>
         <a href="#reinforcement-learning">Train an agent</a>
         <a href="#build-a-bot">Build a bot</a>
@@ -24,17 +25,36 @@
       <p class="small">Free · No account · Runs in your browser · Scripted bots here; RL training runs locally</p>
     </header>
     <section class="hero panel" id="arena" aria-labelledby="arena-title">
-      <h2 class="title" id="arena-title">The baseline arena</h2>
-      <p class="subtitle">Watch four bots with different playing styles quote, buy, and sell in a simplified market.</p>
+      <h2 class="title" id="arena-title">The Figgie arena</h2>
+      <p class="subtitle">Play under player-quote rules or watch four scripted baseline bots trade.</p>
+      <p id="compatibilityNote" class="small compatibility-note" role="status" hidden></p>
+      <fieldset class="mode-toggle" aria-label="Play or watch">
+        <legend>Play / Watch</legend>
+        <label><input id="watchModeInput" type="radio" name="arenaMode" value="watch" checked /> Watch</label>
+        <label><input id="playModeInput" type="radio" name="arenaMode" value="play" /> Play</label>
+      </fieldset>
+      <fieldset id="opponentPicker" class="opponent-picker" hidden>
+        <legend>Choose three opponents</legend>
+        <label><input id="opponentHunter" type="checkbox" name="opponent" value="Hunter" checked /> Hunter</label>
+        <label><input id="opponentBanker" type="checkbox" name="opponent" value="Banker" checked /> Banker</label>
+        <label><input id="opponentDetective" type="checkbox" name="opponent" value="Detective" checked /> Detective</label>
+        <label><input id="opponentBluffer" type="checkbox" name="opponent" value="Bluffer" /> Bluffer</label>
+      </fieldset>
       <div class="controls">
         <label for="durationSelect">Round Length</label>
         <select id="durationSelect">
           <option value="30000">30s</option>
           <option value="60000">1min</option>
           <option value="90000">1:30</option>
+          <option value="240000">4min (official)</option>
         </select>
         <label for="seedInput">Seed</label>
         <input id="seedInput" type="number" value="7" step="1" />
+        <label for="marketModeSelect">Market</label>
+        <select id="marketModeSelect">
+          <option value="players">Player quotes</option>
+          <option value="classic">Classic outside book</option>
+        </select>
         <label for="speedSelect">Speed</label>
         <select id="speedSelect">
           <option value="1">1×</option>
@@ -43,11 +63,17 @@
           <option value="8">8×</option>
         </select>
         <button id="playBtn" type="button">Play</button>
+        <span class="play-links"><a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">New to Figgie? Watch Jane Street’s video</a> · <a href="https://www.figgie.com/">Play the official game</a></span>
         <button id="pauseBtn" class="reset-btn" type="button" disabled>Pause</button>
         <button id="stepBtn" class="reset-btn" type="button" disabled>Step</button>
         <button id="shareBtn" class="reset-btn" type="button">Share this scenario</button>
         <button id="downloadBtn" class="reset-btn" type="button" disabled>Download Log</button>
       </div>
+      <details id="keyboardHelp" class="keyboard-help" hidden>
+        <summary>Keyboard controls</summary>
+        <p>1–4 or ↑/↓ select a suit · B buy · S sell · [ / ] adjust price · I bid · O offer · Enter post · Esc cancel your quotes.</p>
+      </details>
+      <p id="humanActionHelp" class="small" aria-live="polite"></p>
       <div id="shareResult" hidden>
         <label for="shareUrl">Scenario link (select and copy if needed)</label>
         <input id="shareUrl" type="text" readonly />
@@ -62,30 +88,10 @@
       </div>
     </section>
 
-    <section class="rules panel" id="how-it-works">
-      <h2 class="section-title">How Figgie works</h2>
-      <p>The deck has 40 cards: one suit has 12, two have 10, and one has 8. The <strong>goal suit</strong> is the other suit of the same color as the 12-card suit. Only goal cards pay at the end. Bots see their own hands and public market information; this viewer lets you inspect every hand.</p>
-      <p>A <strong>bid</strong> is an offer to buy; an <strong>ask</strong> is an offer to sell. Trade to collect valuable cards or earn cash from favorable prices.</p>
-      <p><strong>Worked example:</strong> if spades has 12 cards and clubs has 10, clubs scores. Ten club cards pay $10 each, leaving $100 of the $200 pot. The player with the most clubs gets that $100; tied leaders split it. Starting with $350, posting a $50 ante, spending a net $20 on trades, and ending with six clubs and the sole majority gives $350 − $50 − $20 + $60 + $100 = <strong>$440, a $90 profit</strong>.</p>
-      <strong>Rules and scripted baselines in this viewer:</strong>
-      <ul>
-        <li>Each bot starts with $350 and antes $50 (total pot $200).</li>
-        <li>All 40 cards are dealt evenly (10 each).</li>
-        <li>Bots trade during the selected timer length.</li>
-        <li>At settlement, each goal suit card pays $10 from the pot.</li>
-        <li>Bot(s) with most goal suit cards split the remaining pot.</li>
-        <li>Every bot estimates goal-suit odds from its starting hand, then plays its own style:</li>
-        <li><strong>Hunter</strong> lifts offers early to corner its likely goal suit.</li>
-        <li><strong>Banker</strong> quotes both sides around fair value and earns the spread.</li>
-        <li><strong>Detective</strong> waits, reads who is paying up on the tape, then follows.</li>
-        <li><strong>Bluffer</strong> buys a decoy suit to fake demand, sells into it, and accumulates quietly.</li>
-      </ul>
-    </section>
-
     <section class="grid">
       <section class="market panel">
         <h2 class="section-title">Market Board</h2>
-        <div id="marketGrid" class="market-grid"></div>
+        <div id="marketGrid" tabindex="-1" class="market-grid"></div>
       </section>
       <section class="bots panel">
         <h2 class="section-title">Bot Ledger</h2>
@@ -105,12 +111,36 @@
       </section>
     </section>
 
+    <section class="rules panel" id="how-it-works">
+      <h2 class="section-title">How Figgie works</h2>
+      <p>The deck has 40 cards: one suit has 12, two have 10, and one has 8. The <strong>goal suit</strong> is the other suit of the same color as the 12-card suit. Only goal cards pay at the end. Play hides the goal suit and opponents’ hands until settlement; Watch reveals all hands.</p>
+      <p>A <strong>bid</strong> is an offer to buy; an <strong>ask</strong> is an offer to sell. Trade to collect valuable cards or earn cash from favorable prices.</p>
+      <p><strong>Worked example:</strong> if spades has 12 cards and clubs has 10, clubs scores. Ten club cards pay $10 each, leaving $100 of the $200 pot. The player with the most clubs gets that $100; tied leaders split it. Starting with $350, posting a $50 ante, spending a net $20 on trades, and ending with six clubs and the sole majority gives $350 − $50 − $20 + $60 + $100 = <strong>$440, a $90 profit</strong>.</p>
+      <strong>Rules and scripted baselines in this viewer:</strong>
+      <ul>
+        <li>Each bot starts with $350 and antes $50 (total pot $200).</li>
+        <li>All 40 cards are dealt evenly (10 each).</li>
+        <li>Bots trade during the selected timer length.</li>
+        <li>At settlement, each goal suit card pays $10 from the pot.</li>
+        <li>Bot(s) with most goal suit cards split the remaining pot.</li>
+        <li>Player-quote mode has no outside book: quotes are backed by cash or a card, crossing quotes trade at the resting price, and every trade clears all quotes.</li>
+        <li>Classic mode preserves the older outside-book simulation for old shared scenarios.</li>
+        <li>Every bot estimates goal-suit odds from its starting hand, then plays its own style:</li>
+        <li><strong>Hunter</strong> lifts offers early to corner its likely goal suit.</li>
+        <li><strong>Banker</strong> quotes both sides around fair value and earns the spread.</li>
+        <li><strong>Detective</strong> waits, reads who is paying up on the tape, then follows.</li>
+        <li><strong>Bluffer</strong> buys a decoy suit to fake demand, sells into it, and accumulates quietly.</li>
+      </ul>
+      <p class="small attribution">Learn from the <a href="https://www.figgie.com/">official Figgie game</a> and <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Jane Street’s gameplay video</a>. This independent educational implementation is not affiliated with or endorsed by Jane Street.</p>
+    </section>
+
     <section class="explanation panel" id="round-explanation" hidden aria-labelledby="explanation-title">
       <h2 class="section-title" id="explanation-title">Understand this round</h2>
       <p id="settlementExplanation"></p>
+      <div id="humanPayout" hidden></div>
       <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable payout breakdown">
         <table>
-          <caption>Cash reconciliation per bot (all amounts in chips, shown as dollars)</caption>
+          <caption>Cash reconciliation per player (all amounts in chips, shown as dollars)</caption>
           <thead><tr><th>Bot</th><th>Start</th><th>Ante</th><th>Net trades</th><th>Goal cards</th><th>Majority</th><th>Final</th><th>Profit</th></tr></thead>
           <tbody id="payoutRows"></tbody>
         </table>
@@ -182,7 +212,7 @@ figgie-eval --model-path artifacts/ppo_learning/best_model/best_model.zip \
       <p>Start with the Python scripted styles, change a parameter, then benchmark against a saved PPO checkpoint on the same seeds. The quickstart includes a one-parameter experiment and explains how to avoid tuning on final-test data.</p>
       <p><a href="https://github.com/riversandrew36/figgie-rl">Explore the source on GitHub</a> · <a href="https://github.com/riversandrew36/figgie-rl/blob/main/CONTRIBUTING.md">Contribute an experiment</a></p>
       <details><summary>Simulation assumptions and scope</summary>
-        <p>The browser uses a separate JavaScript simulation with drifting external quotes and probabilistic fills. It illustrates baseline behavior; it does not execute Python or trained PPO checkpoints. Python also offers a player-quote market with no outside book. Seeds, mechanics, and results are not interchangeable between the implementations.</p>
+        <p>The browser uses a separate JavaScript simulation. Player quotes mode has no outside book; Classic mode preserves the older drifting external quotes and probabilistic fills. The browser does not execute Python or trained PPO checkpoints. Seeds, mechanics, and results are not interchangeable between the implementations.</p>
         <p>This is an independent educational implementation of Figgie, created by Jane Street. It is not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> or <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">watch Jane Street’s gameplay video</a>.</p>
         <p>No accounts or analytics. Only the baseline tracker is saved locally. No real money is involved.</p>
       </details>
