@@ -365,3 +365,55 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
   await completeRound(page);
   await expect(page.locator('#roundCoach')).toBeHidden();
 });
+
+test('front page fits credit and daily card and starts a round in one click', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/figgie-rl/');
+  for (const selector of ['.daily-card', '.intro .attribution', '.intro a[href="https://www.figgie.com/"]',
+    '.intro a[href^="https://www.youtube.com/"]']) {
+    const item = page.locator(selector);
+    await expect(item).toBeInViewport({ ratio: 1 });
+  }
+  await page.screenshot({ path: info.outputPath('front-page.png'), animations: 'disabled' });
+  await page.locator('#playNow').click();
+  expect(await page.evaluate(() => [game.running, game.durationMs, game.players.map(p => p.name)]))
+    .toEqual([true, 60000, ['You', 'Hunter', 'Banker', 'Detective']]);
+  await expect(page.locator('#marketGrid')).toBeInViewport();
+});
+
+test('daily deal records one scored result, shares it, then becomes practice', async ({ page }, info) => {
+  await page.clock.setFixedTime(new Date('2026-11-21T00:05:00Z'));
+  await page.goto('/figgie-rl/?daily');
+  await expect(page.locator('#dailyStatus')).toContainText('2026-11-21 UTC · Not played');
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+    configurable: true, value: { writeText: async () => { throw new Error('blocked'); } },
+  }));
+  await page.locator('#playDaily').click();
+  expect(await page.evaluate(() => game.seed)).toBe(3427125144);
+  await completeRound(page);
+  await expect(page.locator('#dailyResultTitle')).toContainText('Scored result');
+  await expect(page.locator('#dailyResultStreak')).toContainText('Current streak 1');
+  await page.locator('#dailyShare').click();
+  await expect(page.locator('#dailyShareField')).toBeFocused();
+  await expect(page.locator('#dailyShareField')).toHaveValue(/\?daily=2026-11-21/);
+  await page.locator('#dailyResult').screenshot({path: info.outputPath('daily-result.png')});
+  await page.reload();
+  await expect(page.locator('#dailyStatus')).toContainText('practice available');
+  await page.locator('#playDaily').click();
+  await completeRound(page);
+  await expect(page.locator('#dailyResultTitle')).toContainText('Practice result');
+  await page.goto('/figgie-rl/?daily=2026-11-20');
+  await expect(page.locator('#dailyStatus')).toContainText('2026-11-20 UTC · Practice deal');
+});
+
+test('daily deal settles when storage is blocked', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
+    get() { throw new DOMException('Storage blocked', 'SecurityError'); },
+  }));
+  await page.goto('/figgie-rl/?daily');
+  await expect(page.locator('#welcomeBack')).toBeHidden();
+  await expect(page.locator('#dailyStatus')).toContainText('Storage unavailable');
+  await page.locator('#playDaily').click();
+  await completeRound(page);
+  await expect(page.locator('#dailyResultStreak')).toContainText('wasn’t saved');
+});

@@ -228,6 +228,50 @@ const BOT_LESSONS = {
   },
 };
 
+const DAILY_URL = "https://riversandrew36.github.io/figgie-rl/";
+
+function utcDay(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dailySeed(date) {
+  let hash = 2166136261;
+  for (const char of "figgie-daily-" + date) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return hash >>> 0;
+}
+
+function dailyAttempt(days, date, today) {
+  return date === today && !Object.hasOwn(days, date);
+}
+
+function dailyStreak(days, today) {
+  const dates = Object.keys(days).filter((date) => days[date].firstProfit !== null && date <= today).sort();
+  const dayNumber = (date) => Date.parse(date) / 86400000;
+  let run = 0;
+  let best = 0;
+  let previous = -Infinity;
+  for (const date of dates) {
+    const day = dayNumber(date);
+    run = day === previous + 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    previous = day;
+  }
+  return { current: dayNumber(today) - previous <= 1 ? run : 0, best };
+}
+
+function dailyShareText(result) {
+  const { date, profit, practice, called, lockedTime, edges, streak } = result;
+  const prediction = called === null ? "no goal prediction"
+    : `${called ? "goal called" : "goal missed"}${lockedTime ? " at " + lockedTime : ""}`;
+  const squares = edges.slice(0, 40).map((edge) => edge > 0 ? "🟩" : edge < 0 ? "🟥" : "⬜").join("");
+  return [
+    `Figgie Learning Lab · Daily ${date}${practice ? " · practice" : ""}`,
+    `${coachMoney(profit)} · ${prediction} · ${edges.length} ${edges.length === 1 ? "trade" : "trades"} · streak ${streak}`,
+    squares ? squares + (edges.length > 40 ? "…" : "") : "",
+    DAILY_URL + "?daily=" + date,
+  ].filter(Boolean).join("\n");
+}
+
 const arenaTeaching = (() => {
   const read = document.getElementById("yourRead");
   const toggle = document.getElementById("readToggle");
@@ -591,6 +635,9 @@ const arenaTeaching = (() => {
   });
 
   function roundStarted() {
+    activeDaily = pendingDaily;
+    pendingDaily = null;
+    byId("dailyResult").hidden = true;
     lockedTick = null;
     activeLesson = nextLesson;
     nextLesson = null;
@@ -653,6 +700,8 @@ const arenaTeaching = (() => {
       save("predictions", predictionStats);
       predictionResult.textContent = `You picked ${SUITS[Number(prediction.value)].name}. ${correct ? "Correct!" : `The goal was ${SUITS[game.goalSuitIdx].name}.`}`;
     }
+    if (activeDaily) finishDaily(seat, picked ? correct : null);
+    renderFront();
     if (!activeLesson) return;
     const lesson = BOT_LESSONS[activeLesson];
     const profit = payoutBreakdown(game, game.players[seat]).netProfit;
@@ -666,6 +715,7 @@ const arenaTeaching = (() => {
     lessonStatus.textContent = passed ? "Lesson passed." : `Try again. ${lesson.condition}`;
     activeLesson = null;
     renderLessons();
+    renderFront();
   }
 
   byId("coachReplay").addEventListener("click", () => {
@@ -704,6 +754,109 @@ const arenaTeaching = (() => {
     prepareLesson(shared);
     byId("lesson-" + shared)?.scrollIntoView();
   }
+
+  const dailyKey = "figgie.teaching.daily";
+  const dailyQuery = new URL(window.location.href).searchParams.get("daily");
+  function selectedDay(today) {
+    if (!dailyQuery || !/^\d{4}-\d{2}-\d{2}$/.test(dailyQuery)) return today;
+    const parsed = new Date(dailyQuery);
+    return Number.isFinite(+parsed) && utcDay(parsed) === dailyQuery && dailyQuery <= today ? dailyQuery : today;
+  }
+
+  let days = {};
+  let canStoreDaily = true;
+  try {
+    days = JSON.parse(localStorage.getItem(dailyKey)) || {};
+    if (typeof days !== "object" || Array.isArray(days)) days = {};
+  } catch { canStoreDaily = false; }
+  let pendingDaily = null;
+  let activeDaily = null;
+  let result = null;
+
+  function persistDaily() {
+    if (!canStoreDaily) return;
+    try { localStorage.setItem(dailyKey, JSON.stringify(days)); }
+    catch { canStoreDaily = false; }
+  }
+
+  function renderFront() {
+    const today = utcDay();
+    const date = selectedDay(today);
+    const record = days[date];
+    const streak = dailyStreak(days, today);
+    const status = date !== today ? "Practice deal" : !record ? "Not played"
+      : record.firstProfit === null ? "Scored attempt used · practice available"
+        : `Played: ${coachMoney(record.firstProfit)} · practice available`;
+    byId("dailyTitle").textContent = date === today ? "Today’s deal" : "Daily practice";
+    byId("dailyStatus").textContent = `${date} UTC · ${status} · ${streak.current} day streak` +
+      (canStoreDaily ? "" : " · Storage unavailable. Results won’t be saved.");
+    const welcome = byId("welcomeBack");
+    welcome.hidden = true;
+    try {
+      localStorage.getItem(dailyKey);
+      const passed = Object.values(progress).filter((lesson) => lesson.passed).length;
+      if (strengthTracker.rounds || passed || streak.current || streak.best) {
+        welcome.hidden = false;
+        welcome.textContent = `Welcome back · ${strengthTracker.rounds} rounds played · ${passed} lessons passed · ${streak.current} day daily streak`;
+      }
+    } catch { /* Storage is unavailable. */ }
+  }
+
+  function startDaily() {
+    const today = utcDay();
+    const date = selectedDay(today);
+    const scored = dailyAttempt(days, date, today);
+    if (scored) {
+      days[date] = { firstProfit: null, best: null, called: null };
+      persistDaily();
+    }
+    pendingDaily = { date, scored };
+    startFrontRound(dailySeed(date));
+    renderFront();
+  }
+
+  function finishDaily(seat, called) {
+    const { date, scored } = activeDaily;
+    activeDaily = null;
+    const profit = payoutBreakdown(game, game.players[seat]).netProfit;
+    const record = days[date];
+    if (record) {
+      record.best = record.best === null ? profit : Math.max(record.best, profit);
+      if (scored) Object.assign(record, { firstProfit: profit, called });
+      persistDaily();
+    }
+    const streak = dailyStreak(days, utcDay());
+    const edges = tradeHindsight(game, seat).map((trade) => trade.edge);
+    result = { date, profit, called, practice: !scored, edges, streak: streak.current,
+      lockedTime: lockedTick === null ? null : coachTime(game, lockedTick) };
+    const best = edges.length ? coachMoney(Math.max(...edges)) : "None";
+    byId("dailyResultTitle").textContent = `Daily ${date} · ${scored ? "Scored result" : "Practice result"}`;
+    byId("dailyResultSummary").textContent = `Profit ${coachMoney(profit)} · ${edges.length} trades · Best trade edge ${best}`;
+    byId("dailyResultPrediction").textContent = (called === null ? "No goal prediction." : called ? "Goal called." : "Goal missed.") +
+      (result.lockedTime ? ` Locked at ${result.lockedTime}.` : called === null ? "" : " Pick wasn’t locked.");
+    byId("dailyResultStreak").textContent = `Current streak ${streak.current} · best ${streak.best}` +
+      (canStoreDaily ? "" : " · Storage unavailable. This result wasn’t saved.");
+    byId("dailyShareField").hidden = true;
+    byId("dailyShareStatus").textContent = "";
+    byId("dailyResult").hidden = false;
+  }
+
+  byId("playDaily").addEventListener("click", startDaily);
+  byId("dailyShare").addEventListener("click", async () => {
+    if (!result) return;
+    const field = byId("dailyShareField");
+    field.value = dailyShareText(result);
+    field.hidden = false;
+    try {
+      await navigator.clipboard.writeText(field.value);
+      byId("dailyShareStatus").textContent = "Result copied.";
+    } catch {
+      byId("dailyShareStatus").textContent = "Select and copy your result.";
+      field.focus();
+      field.select();
+    }
+  });
+  renderFront();
 
   return { render, beforeAction, afterAction, stopTutorial, roundStarted, roundEnded };
 })();
