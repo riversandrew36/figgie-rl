@@ -3,6 +3,23 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Browser research showcase — November 20, 2026
+
+**What the AI learned** renders the archived strong-lineup ladder from
+`figgie_rl/arena/rl_results.json` (2,393 bytes). Regenerate it and the
+standalone HTML snapshot using `python -m scripts.export_rl_showcase`. The
+training curves use seeds 901–903, and the reported profits use development
+deals 5400000–5400199. Averaged across the three runs, profit fell from +46.14
+with the goal shown to −5.63 with odds alone. The no-aid stage averaged −2.62,
+about +4.01 above Hold and below the scripted Bayesian, Hunter, and Bluffer
+baselines.
+
+The learned browser seats stopped at the [observation parity gate](BROWSER_POLICY_PARITY.md).
+The browser expires a resting offer before Python at the requested decision
+rate. The first mismatched input differs by 0.4, above the 1e-6 tolerance.
+No browser policy evaluations or confidence intervals were produced.
+Scripted browser trade logs are unchanged for the pinned seeds.
+
 ## Player front page and daily deal — November 20, 2026
 
 The front page opens with a direct route to Play, a guided round, and the
