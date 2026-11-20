@@ -8,7 +8,7 @@ function load(url = 'https://example.test/figgie-rl/') {
   const element = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: id === 'speedSelect' ? '1' : id === 'durationSelect' ? '30000' : '7',
-      addEventListener(type, handler) { this[type === "click" ? "clickHandler" : type] = handler; }, focus() {}, select() {},
+      addEventListener(type, handler) { this[type === "click" ? "clickHandler" : type] = handler; }, focus() {}, select() {}, scrollIntoView() {},
       click() { this.clickHandler?.(); },
     });
     return elements.get(id);
@@ -511,4 +511,55 @@ test('existing one-minute scripted rounds keep their main-branch trade logs', ()
     const log = run(`game.start(60000,${Number(seed)}); while (game.running) game.step(true); JSON.stringify(game.roundLog)`);
     assert.equal(createHash('sha256').update(log).digest('hex'), digest);
   }
+});
+
+test('Players and Classic preserve main-branch trades, RNG and settlement', () => {
+  const { createHash } = require('node:crypto');
+  for (const [market, seed, expected] of [
+    ['players', 7, '4e4a82b3178be6dcafdb777aed326db3de93cb26db8ffda6594a2bd5bf84bbbc'],
+    ['players', 19, '2fa2ed7c7793c13818b92d4829672d2c9dcfc758633679268bfdd3b03e91d859'],
+    ['classic', 7, '3d2c7acc983ef72a30ac22ee668ce0c3737823b8d43c1d8b0458d6c1c246db9e'],
+    ['classic', 19, '1e6b6d7d47fcc0fe7c38ee4aa906c6c1ffeb4511d8bd7fecc2fd22c687c527d3'],
+  ]) {
+    const { run } = load();
+    const output = run(`game.start(60000,${seed},1,{marketMode:"${market}"});while(game.running)game.step(true);
+      JSON.stringify([game.roundLog,game.rngState,game.goalSuitIdx,game.players.map(p=>p.cash),game.winnerIdxs])`);
+    assert.equal(createHash('sha256').update(output).digest('hex'), expected);
+  }
+});
+
+test('lab rotates actions, applies a queued order once and ages quotes in decisions', () => {
+  const { run } = load();
+  const outcome = plain(run(`(() => {
+    game.start(60000, 7, 1, {marketMode:"lab", humanSeated:true,
+      playerSpecs:[{name:"You",isHuman:true}, ...BOT_NAMES.slice(0,3).map((name,strategy)=>({name,strategy}))]});
+    game.players[3].inventory[0] = 1;
+    game.actionOrderStart = 3;
+    const order = [];
+    game.pickAction = i => i === 3 && !game.tick ? {kind:"quote_ask", suit:0, price:8} : null;
+    const apply = game.applyAction.bind(game);
+    game.applyAction = (i, action) => {order.push(i); return apply(i, action);};
+    game.queuedHumanAction = {kind:"buy", suit:0};
+    game.step(true);
+    game.applyAction(2,{kind:"quote_bid",suit:2,price:8});
+    for(let i=0;i<7;i++) game.step(true);
+    const stillOpen = game.bestBid(2,0).price;
+    game.step(true);
+    return {order:order.slice(0,4), open:stillOpen, expired:game.bestBid(2,0).buyer === null,
+      trades:game.roundLog.length, interval:game.tickMs, queue:game.queuedHumanAction};
+  })()`));
+  assert.deepEqual(outcome, {order:[3,0,1,2],open:8,expired:true,trades:1,interval:500,queue:null});
+});
+
+test('daily, lessons and tutorial switch a lab share visitor back to Players', () => {
+  for (const button of ['playDaily', 'learnBasics']) {
+    const {run,elements} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&mode=play&seed=7');
+    assert.equal(run('game.marketMode'), 'lab');
+    run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+    elements.get(button).click();
+    assert.equal(run('game.marketMode'), 'players');
+  }
+  const {run} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&mode=play&seed=7&lesson=hunter');
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  assert.equal(run('game.marketMode'), 'players');
 });

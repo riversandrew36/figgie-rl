@@ -2,7 +2,8 @@
 const SIMULATION_VERSION = "2.0.0";
 const EXPORT_SCHEMA_VERSION = 3;
 const SUPPORTED_DURATIONS = [30000, 60000, 90000, 240000];
-const MARKET_MODES = ["players", "classic"];
+const MARKET_MODES = ["players", "classic", "lab"];
+const LAB_STEPS = 120;
 const PRICE_FLOOR = 1;
 const PRICE_CAP = 60;
 const EXPECTED_POT_REMAINDER = 320 / 3;
@@ -126,6 +127,10 @@ class FiggieViewerGame {
     this.lastActionMessage = "";
     this.rngState = this.seed >>> 0;
     this.durationMs = durationMs;
+    this.tickMs = this.marketMode === "lab" ? durationMs / LAB_STEPS : 250;
+    this.queuedHumanAction = null;
+    this.actionOrderStart = this.marketMode === "lab" ? this.randInt(0, 4) : 0;
+    this.tieBreakStart = this.marketMode === "lab" ? this.randInt(0, 4) : 0;
     this.elapsedMs = 0;
     this.tick = 0;
     this.tradeId = 0;
@@ -145,7 +150,7 @@ class FiggieViewerGame {
     this.fundamentalMid = Array(SUITS.length).fill(5.0);
     this.externalBid = Array(SUITS.length).fill(4.0);
     this.externalAsk = Array(SUITS.length).fill(6.0);
-    this.lastTradePrice = Array(SUITS.length).fill(this.marketMode === "players" ? 0.0 : 5.0);
+    this.lastTradePrice = Array(SUITS.length).fill(this.marketMode !== "classic" ? 0.0 : 5.0);
     this.lastTradeSignedVolume = Array(SUITS.length).fill(0.0);
     this.cumulativeSignedFlow = Array(SUITS.length).fill(0.0);
 
@@ -222,18 +227,22 @@ class FiggieViewerGame {
     }
 
     const previousMessage = this.lastActionMessage;
-    this.ageAndExpireQuotes();
-    this.updateExternalBook();
-    for (let i = 0; i < this.players.length; i += 1) {
-      if (this.players[i].isHuman) continue;
-      const action = this.pickAction(i);
-      this.applyAction(i, action);
-    }
+    if (this.marketMode === "lab") {
+      this.runLabTurn();
+    } else {
+      this.ageAndExpireQuotes();
+      this.updateExternalBook();
+      for (let i = 0; i < this.players.length; i += 1) {
+        if (this.players[i].isHuman) continue;
+        const action = this.pickAction(i);
+        this.applyAction(i, action);
+      }
 
-    const latest = this.roundLog.at(-1);
-    const involved = latest && latest.tick === this.tick
-      && (this.players[latest.buyerIdx]?.isHuman || this.players[latest.sellerIdx]?.isHuman);
-    this.lastActionMessage = involved ? latest.line : previousMessage;
+      const latest = this.roundLog.at(-1);
+      const involved = latest && latest.tick === this.tick
+        && (this.players[latest.buyerIdx]?.isHuman || this.players[latest.sellerIdx]?.isHuman);
+      this.lastActionMessage = involved ? latest.line : previousMessage;
+    }
     this.tick += 1;
     if (this.humanSeated && this.captureCoach !== false && globalThis.coachSnapshot) {
       globalThis.coachSnapshot(this, this.players.findIndex((player) => player.isHuman));
@@ -242,9 +251,27 @@ class FiggieViewerGame {
       ? this.clockOffset + Date.now() - this.clockStarted : this.elapsedMs + this.tickMs;
     render();
 
-    if (this.elapsedMs >= this.durationMs) {
+    if (this.marketMode === "lab" ? this.tick >= LAB_STEPS : this.elapsedMs >= this.durationMs) {
       this.stop(true);
       onRoundEnded();
+    }
+  }
+
+  // Learner observations are taken before ageing; actions execute in rotated order.
+  runLabTurn(scriptedActions = null) {
+    const decisions = scriptedActions || this.players.map((player, seat) =>
+      player.isHuman ? this.queuedHumanAction : this.learnedDecision?.(seat));
+    this.queuedHumanAction = null;
+    this.ageAndExpireQuotes();
+    for (let offset = 0; offset < this.players.length; offset += 1) {
+      const seat = (this.actionOrderStart + offset) % this.players.length;
+      const player = this.players[seat];
+      const action = decisions[seat] || (scriptedActions || player.isHuman ? null : this.pickAction(seat));
+      if (player.isHuman && action) this.humanActionTicks.add(this.tick);
+      const previousMessage = this.lastActionMessage;
+      if (player.isHuman && action) this.lastActionMessage = "Your queued action was applied.";
+      this.applyAction(seat, action);
+      if (!player.isHuman) this.lastActionMessage = previousMessage;
     }
   }
 
@@ -301,7 +328,7 @@ class FiggieViewerGame {
   }
 
   quotePrice(side, suit, level) {
-    if (this.marketMode === "players") {
+    if (this.marketMode !== "classic") {
       return this.clamp(Math.round(Number(level)), PRICE_FLOOR, PRICE_CAP);
     }
     if (side === "quote_bid") {
@@ -311,9 +338,10 @@ class FiggieViewerGame {
   }
 
   bestBid(suit, excludingPlayerIdx) {
-    let bestPrice = this.marketMode === "players" ? -Infinity : this.externalBid[suit];
+    let bestPrice = this.marketMode !== "classic" ? -Infinity : this.externalBid[suit];
     let buyer = null;
-    for (let i = 0; i < this.players.length; i += 1) {
+    for (let offset = 0; offset < this.players.length; offset += 1) {
+      const i = ((this.marketMode === "lab" ? this.tieBreakStart : 0) + offset) % this.players.length;
       if (i === excludingPlayerIdx) {
         continue;
       }
@@ -327,9 +355,10 @@ class FiggieViewerGame {
   }
 
   bestAsk(suit, excludingPlayerIdx) {
-    let bestPrice = this.marketMode === "players" ? Infinity : this.externalAsk[suit];
+    let bestPrice = this.marketMode !== "classic" ? Infinity : this.externalAsk[suit];
     let seller = null;
-    for (let i = 0; i < this.players.length; i += 1) {
+    for (let offset = 0; offset < this.players.length; offset += 1) {
+      const i = ((this.marketMode === "lab" ? this.tieBreakStart : 0) + offset) % this.players.length;
       if (i === excludingPlayerIdx) {
         continue;
       }
@@ -358,7 +387,7 @@ class FiggieViewerGame {
     }
 
     if (action.kind === "quote_bid") {
-      if (this.marketMode === "players") {
+      if (this.marketMode !== "classic") {
         const requestedPrice = Number(action.price);
         if (!Number.isInteger(requestedPrice)) {
           this.lastActionMessage = `${player.name}'s bid was rejected: enter an integer price.`;
@@ -392,7 +421,7 @@ class FiggieViewerGame {
     }
 
     if (action.kind === "quote_ask") {
-      if (this.marketMode === "players") {
+      if (this.marketMode !== "classic") {
         const requestedPrice = Number(action.price);
         if (!Number.isInteger(requestedPrice)) {
           this.lastActionMessage = `${player.name}'s offer was rejected: enter an integer price.`;
@@ -429,7 +458,7 @@ class FiggieViewerGame {
       const ask = this.bestAsk(suit, playerIdx);
       let seller = ask.seller;
       if (seller === null) {
-        if (this.marketMode === "players") {
+        if (this.marketMode !== "classic") {
           this.lastActionMessage = `${player.name} could not buy ${SUITS[suit].name}: no player offer is resting.`;
           return false;
         }
@@ -454,7 +483,7 @@ class FiggieViewerGame {
       const bid = this.bestBid(suit, playerIdx);
       let buyer = bid.buyer;
       if (buyer === null) {
-        if (this.marketMode === "players") {
+        if (this.marketMode !== "classic") {
           this.lastActionMessage = `${player.name} could not sell ${SUITS[suit].name}: no player bid is resting.`;
           return false;
         }
@@ -528,7 +557,7 @@ class FiggieViewerGame {
     };
     this.tradeTape.unshift(trade);
     this.roundLog.push(trade);
-    if (this.marketMode === "players") this.clearAllQuotes();
+    if (this.marketMode !== "classic") this.clearAllQuotes();
     if (this.tradeTape.length > 70) {
       this.tradeTape.length = 70;
     }
@@ -615,6 +644,7 @@ class FiggieViewerGame {
   }
 
   roundFraction() {
+    if (this.marketMode === "lab") return this.tick / LAB_STEPS;
     return this.durationMs > 0 ? this.elapsedMs / this.durationMs : 0;
   }
 
@@ -626,7 +656,7 @@ class FiggieViewerGame {
   }
 
   hunterAction(playerIdx) {
-    if (this.marketMode === "players") return this.hunterEndogenousAction(playerIdx);
+    if (this.marketMode !== "classic") return this.hunterEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const posterior = goalSuitPosterior(player.initialInventory);
@@ -653,7 +683,7 @@ class FiggieViewerGame {
   }
 
   bankerAction(playerIdx) {
-    if (this.marketMode === "players") return this.bankerEndogenousAction(playerIdx);
+    if (this.marketMode !== "classic") return this.bankerEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const edge = 1.0;
@@ -707,7 +737,7 @@ class FiggieViewerGame {
   }
 
   detectiveAction(playerIdx) {
-    if (this.marketMode === "players") return this.detectiveEndogenousAction(playerIdx);
+    if (this.marketMode !== "classic") return this.detectiveEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const prior = goalSuitPosterior(player.initialInventory);
@@ -747,7 +777,7 @@ class FiggieViewerGame {
   }
 
   blufferAction(playerIdx) {
-    if (this.marketMode === "players") return this.blufferEndogenousAction(playerIdx);
+    if (this.marketMode !== "classic") return this.blufferEndogenousAction(playerIdx);
     const player = this.players[playerIdx];
     const market = this.marketView(playerIdx);
     const posterior = goalSuitPosterior(player.initialInventory);
@@ -838,7 +868,7 @@ class FiggieViewerGame {
   }
 
   updateExternalBook() {
-    if (this.marketMode === "players") return;
+    if (this.marketMode !== "classic") return;
     const half = this.baseSpread / 2;
     for (let i = 0; i < SUITS.length; i += 1) {
       this.fundamentalMid[i] = this.clamp(this.fundamentalMid[i] + this.randn(0, this.driftStd), 1, 20);
@@ -850,7 +880,7 @@ class FiggieViewerGame {
   markToMarket(player) {
     let value = player.cash;
     for (let s = 0; s < SUITS.length; s += 1) {
-      const mark = this.marketMode === "players"
+      const mark = this.marketMode !== "classic"
         ? this.lastTradePrice[s]
         : (this.externalBid[s] + this.externalAsk[s]) / 2;
       value += player.inventory[s] * mark;
@@ -1340,12 +1370,18 @@ function clearExplanation() {
   }
 }
 
+let explicitLabPlay = false;
+function selectedMarket(playMode) {
+  if (playMode) return explicitLabPlay ? "lab" : "players";
+  return MARKET_MODES.includes(marketModeSelect?.value) ? marketModeSelect.value : "players";
+}
+
 function refreshModePreview() {
   if (game.running) return;
   const playMode = isPlayMode();
   const playerSpecs = playerSpecsForMode(playMode);
   const validLineup = !playMode || playerSpecs !== null;
-  const marketMode = playMode ? "players" : (MARKET_MODES.includes(marketModeSelect?.value) ? marketModeSelect.value : "players");
+  const marketMode = selectedMarket(playMode);
   game.marketMode = marketMode;
   if (marketModeSelect) {
     marketModeSelect.value = marketMode;
@@ -1417,6 +1453,14 @@ function performHumanAction(kind, suitIdx) {
   const playerIdx = humanPlayerIndex();
   if (playerIdx < 0 || !game.running || !Number.isInteger(suitIdx)) return;
   if (globalThis.figgieTeaching?.beforeAction(kind, suitIdx) === false) return;
+  if (game.marketMode === "lab") {
+    const price = Number(document.querySelector?.(`.human-price[data-suit="${suitIdx}"]`)?.value);
+    game.queuedHumanAction = { kind, suit: suitIdx, price };
+    game.lastActionMessage = "Queued for your turn";
+    selectedSuitIdx = suitIdx;
+    render();
+    return;
+  }
   game.humanActionTicks.add(game.tick);
   if (kind === "quote_bid" || kind === "quote_ask") {
     selectedQuoteSide = kind;
@@ -1435,6 +1479,15 @@ function performHumanAction(kind, suitIdx) {
 }
 
 function render() {
+  const labNote = document.getElementById("labMarketNote");
+  labNote.hidden = game.marketMode !== "lab";
+  if (!labNote.hidden) {
+    const interval = game.tickMs / 1000;
+    const note = interval === 0.5
+      ? "Trained bots play on the schedule they learned: one move per seat every half second, quotes last 4 seconds."
+      : `Python schedule: one move per seat every ${interval} seconds, quotes last ${interval * 8} seconds.`;
+    if (labNote.textContent !== note) labNote.textContent = note;
+  }
   timerEl.textContent = `Time Left: ${formatTime(game.timeRemainingMs())}`;
   statusEl.textContent = game.humanSeated && game.lastActionMessage
     ? `Status: ${game.lastActionMessage}`
@@ -1580,7 +1633,7 @@ playBtn.addEventListener("click", () => {
     if (humanActionHelpEl) humanActionHelpEl.textContent = "Select exactly three opponents to start a Play-mode round.";
     return;
   }
-  const marketMode = playMode ? "players" : (MARKET_MODES.includes(marketModeSelect.value) ? marketModeSelect.value : "players");
+  const marketMode = selectedMarket(playMode);
   seedInput.value = selectedSeed;
   durationSelect.value = selectedMs;
   clearExplanation();
@@ -1725,6 +1778,7 @@ if (initialScenario.arenaMode === "play" && incomingOpponents.size === 3
   && [...incomingOpponents].every((name) => BOT_NAMES.includes(name))) {
   for (const name of BOT_NAMES) document.getElementById("opponent" + name).checked = incomingOpponents.has(name);
 }
+explicitLabPlay = initialScenario.arenaMode === "play" && initialScenario.marketMode === "lab";
 if (marketModeSelect) marketModeSelect.value = initialScenario.marketMode;
 game.reset(initialScenario.durationMs, initialScenario.seed, { marketMode: initialScenario.marketMode });
 if (compatibilityNoteEl) {
@@ -1733,7 +1787,7 @@ if (compatibilityNoteEl) {
 }
 marketModeSelect.addEventListener("change", () => {
   if (isPlayMode()) {
-    marketModeSelect.value = "players";
+    marketModeSelect.value = selectedMarket(true);
     return;
   }
   refreshModePreview();

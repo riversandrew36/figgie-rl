@@ -410,6 +410,8 @@ const arenaTeaching = (() => {
   }
 
   function startTutorial() {
+    explicitLabPlay = false;
+    marketModeSelect.value = "players";
     if (step >= 0) return;
     if (game.running) playBtn.click();
     dismissPrompt();
@@ -477,6 +479,8 @@ const arenaTeaching = (() => {
   }
 
   function startFrontRound(seed) {
+    explicitLabPlay = false;
+    marketModeSelect.value = "players";
     if (step >= 0) stopTutorial();
     else if (game.running) playBtn.click();
     playModeInput.checked = true;
@@ -594,6 +598,8 @@ const arenaTeaching = (() => {
   }
 
   function prepareLesson(id) {
+    explicitLabPlay = false;
+    marketModeSelect.value = "players";
     const lesson = BOT_LESSONS[id];
     if (step >= 0) stopTutorial();
     else if (game.running) playBtn.click();
@@ -726,6 +732,7 @@ const arenaTeaching = (() => {
     if (!game.revealGoal || !game.humanSeated) return;
     const lineup = game.players.filter((player) => !player.isHuman).map((player) => player.name);
     playModeInput.checked = true;
+    explicitLabPlay = game.marketMode === "lab";
     seedInput.value = game.seed;
     durationSelect.value = game.durationMs;
     for (const name of BOT_NAMES) byId("opponent" + name).checked = lineup.includes(name);

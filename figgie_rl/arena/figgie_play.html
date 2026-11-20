@@ -52,6 +52,7 @@
     <section class="hero panel" id="arena" aria-labelledby="arena-title">
       <h2 class="title" id="arena-title">The Figgie arena</h2>
       <p class="subtitle">Play under player-quote rules or watch four scripted baseline bots trade.</p>
+      <p id="labMarketNote" class="small" aria-live="polite" hidden></p>
       <p id="compatibilityNote" class="small compatibility-note" role="status" hidden></p>
       <fieldset class="mode-toggle" aria-label="Play or watch">
         <legend>Play / Watch</legend>
@@ -80,6 +81,7 @@
         <select id="marketModeSelect">
           <option value="players">Player quotes</option>
           <option value="classic">Classic outside book</option>
+          <option value="lab">Trained-bot market (Python schedule)</option>
         </select>
         <label for="speedSelect">Speed</label>
         <select id="speedSelect">
