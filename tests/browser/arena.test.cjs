@@ -476,3 +476,39 @@ test('daily round hides the seed field until the round ends', () => {
   elements.get('playBtn').click();
   assert.equal(elements.get('seedInput').hidden, false);
 });
+
+test('policy parity gate reproduces the resting-offer mismatch at decision four', () => {
+  const fixture = require('./fixtures/ppo_quote_probe.json');
+  const { run } = load();
+  run(`game.loadDeal(${JSON.stringify({ inventories: fixture.inventories, goalSuitIdx: fixture.goalSuitIdx })});
+    game.applyAction(1, { kind: "quote_ask", suit: 0, price: 8 });`);
+  let tick = 0;
+  const mismatches = [];
+  for (const row of fixture.steps) {
+    while (tick < row.browser_tick) {
+      run('game.ageAndExpireQuotes()');
+      tick += 1;
+    }
+    const ask = run('game.bestAsk(0, 0).price');
+    const encodedAsk = Number.isFinite(ask) ? Math.fround(ask / 20) : 0;
+    const expected = row.observation[9]; // First scaled best ask, after inventory, cash and bids.
+    if (Math.abs(encodedAsk - expected) > 1e-6) mismatches.push(row.decision);
+  }
+  assert.deepEqual(mismatches, [4, 5, 6, 7]);
+  assert.equal(fixture.steps[4].best_ask, 8);
+});
+
+test('existing one-minute scripted rounds keep their main-branch trade logs', () => {
+  const { createHash } = require('node:crypto');
+  const expected = {
+    1: '4125e20f6a1023af43141b7bf35a92a414290d147c4511e8211d69b33dd415dc',
+    7: 'c1d5401de1cfa301ededb0b3dc2f105285904e8d7ab1f239314f5ea130cf4798',
+    19: '1cb33f05b6cf9d9d65f48cf04525f5f6685b87ef2f7571dfb8a005f0af48c2f3',
+    50: '772447b419728ab8ff11216787916956c77e63d5a76e783b7ec6a3d8a7bd9d19',
+  };
+  for (const [seed, digest] of Object.entries(expected)) {
+    const { run } = load();
+    const log = run(`game.start(60000,${Number(seed)}); while (game.running) game.step(true); JSON.stringify(game.roundLog)`);
+    assert.equal(createHash('sha256').update(log).digest('hex'), digest);
+  }
+});
