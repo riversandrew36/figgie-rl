@@ -11,20 +11,32 @@
   <a class="skip-link" href="#arena">Skip to arena</a>
   <main class="shell">
     <header class="intro panel">
-      <p class="eyebrow">OPEN REINFORCEMENT-LEARNING LAB</p>
-      <h1>Figgie Learning Lab</h1>
-      <p class="lead">Explore trading strategies. Train agents. Study how they learn with hidden information.</p>
-      <p>Play a round yourself or watch four scripted baselines trade. Inspect settlement, then take the experiment into Python to train and evaluate a PPO agent.</p>
-      <p class="small attribution">Independent educational implementation, not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.</p>
-      <nav class="entry-links" aria-label="Start exploring">
-        <button id="learnBasics" type="button">Learn the basics (3 min)</button>
-        <a class="primary-link" href="#arena">Play or watch a round ↓</a>
-        <a href="#how-it-works">How it works</a>
-        <a href="#reinforcement-learning">Train an agent</a>
-        <a href="#build-a-bot">Build a bot</a>
-      </nav>
-      <p class="small">Free · No account · Runs in your browser · Scripted bots here; RL training runs locally</p>
+      <div class="hero-pitch">
+        <h1>Figgie Learning Lab</h1>
+        <p class="lead">Trade cards, read the market, and guess which suit pays in a fast game of hidden information.</p>
+        <nav class="entry-links" aria-label="Start exploring">
+          <button id="playNow" type="button">Play now</button>
+          <button id="learnBasics" class="reset-btn" type="button">Learn the basics (3 min)</button>
+          <a href="#reinforcement-learning">Train an agent</a>
+        </nav>
+        <p id="welcomeBack" class="small" hidden></p>
+      </div>
+      <section class="daily-card" aria-labelledby="dailyTitle">
+        <h2 id="dailyTitle">Today’s deal</h2>
+        <p id="dailyStatus" aria-live="polite">One shared deal every UTC day.</p>
+        <button id="playDaily" type="button">Play daily deal</button>
+      </section>
+      <p class="small attribution">Figgie was created by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.<br />Independent educational project, not affiliated with or endorsed by Jane Street.</p>
     </header>
+    <section class="panel figgie-quick" aria-labelledby="quick-rules">
+      <h2 id="quick-rules">What is Figgie?</h2>
+      <ul>
+        <li><span aria-hidden="true">♠ ♥ ♣ ♦</span> Four suits. One is secretly the goal.</li>
+        <li><span aria-hidden="true">↑ ↓</span> Trade cards by bidding and offering.</li>
+        <li><span aria-hidden="true">$10</span> Goal cards pay $10 each. The most goal cards wins the rest of the pot, split on ties.</li>
+      </ul>
+      <a href="#how-it-works">Read the full rules</a>
+    </section>
     <section class="hero panel" id="arena" aria-labelledby="arena-title">
       <h2 class="title" id="arena-title">The Figgie arena</h2>
       <p class="subtitle">Play under player-quote rules or watch four scripted baseline bots trade.</p>

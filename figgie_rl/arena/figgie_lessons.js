@@ -428,6 +428,21 @@ const arenaTeaching = (() => {
     showStep();
   }
 
+  function startFrontRound(seed) {
+    if (step >= 0) stopTutorial();
+    else if (game.running) playBtn.click();
+    playModeInput.checked = true;
+    watchModeInput.checked = false;
+    durationSelect.value = "60000";
+    seedInput.value = seed;
+    BOT_NAMES.forEach((name, index) => { byId("opponent" + name).checked = index < 3; });
+    refreshModePreview();
+    playBtn.click();
+    marketGridEl.scrollIntoView?.({ block: "start" });
+  }
+
+  byId("playNow").addEventListener("click", () => startFrontRound(Math.floor(Math.random() * 2 ** 32)));
+
   function startRealRound() {
     stopTutorial();
     durationSelect.value = "60000";
