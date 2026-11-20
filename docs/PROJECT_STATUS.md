@@ -9,8 +9,8 @@ After a Play round settles, the coach shows the effect of reversing each
 trade, a timeline of tape-adjusted goal odds, and up to three missed quotes.
 The per-trade edge is the change in final bankroll when that trade is included.
 Individual counterfactuals can count the same majority swing more than once,
-so the displayed reconciliation adjusts the edge total back to trading
-cashflow before adding actual payouts and subtracting the ante.
+so the reconciliation starts at the no-trade profit and shows a combined
+majority effect alongside the individual edges.
 
 | Lesson | Seed | Current pass condition |
 |---|---:|---|
