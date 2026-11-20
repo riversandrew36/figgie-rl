@@ -35,7 +35,8 @@ function tradeHindsight(round, seat) {
     }
     const payoutDelta = payout - goalPayout(round, without, seat);
     const value = buy ? payoutDelta : -payoutDelta;
-    return { ...trade, buy, value, edge: buy ? value - trade.price : trade.price - value };
+    const bankrollDelta = payoutDelta + (buy ? -trade.price : trade.price);
+    return { ...trade, buy, value, edge: bankrollDelta };
   });
 }
 
@@ -55,6 +56,120 @@ function lessonPassed(id, round, seat, prediction, lockedTick) {
     default:
       return false;
   }
+}
+
+// The final positions are held fixed while a hypothetical transfer is added.
+function missedEdges(round, seat) {
+  const counts = round.players.map((player) => player.inventory[round.goalSuitIdx]);
+  const payout = goalPayout(round, counts, seat);
+  const seen = new Map();
+  for (const frame of round.coachSnapshots || []) {
+    if (round.humanActionTicks?.has(frame.tick)) continue;
+    frame.books.forEach(({ bid, ask, held }, suit) => {
+      for (const [buy, quote] of [[true, ask], [false, bid]]) {
+        if (quote === null || (buy ? quote.price > frame.cash : held === 0)) continue;
+        const after = [...counts];
+        if (suit === round.goalSuitIdx) {
+          if ((buy ? after[quote.owner] : after[seat]) === 0) continue;
+          after[seat] += buy ? 1 : -1;
+          after[quote.owner] += buy ? -1 : 1;
+        }
+        const delta = goalPayout(round, after, seat) - payout;
+        const edge = delta + (buy ? -quote.price : quote.price);
+        const key = [buy, suit, quote.owner, quote.price].join(",");
+        if (edge > 0 && !seen.has(key)) seen.set(key, { ...quote, tick: frame.tick, buy, suit, edge });
+      }
+    });
+  }
+  return [...seen.values()].sort((a, b) => b.edge - a.edge).slice(0, 3);
+}
+
+function coachSnapshot(round, seat) {
+  const player = round.players[seat];
+  const books = SUITS.map((_, suit) => {
+    const bid = round.bestBid(suit, seat);
+    const ask = round.bestAsk(suit, seat);
+    return {
+      held: player.inventory[suit],
+      bid: bid.buyer === null ? null : { price: bid.price, owner: bid.buyer },
+      ask: ask.seller === null ? null : { price: ask.price, owner: ask.seller },
+    };
+  });
+  round.coachSnapshots.push({ tick: round.tick, cash: player.cash, books });
+}
+
+function coachMoney(amount) {
+  return (amount < -1e-8 ? "−" : "+") + "$" + Math.abs(amount).toFixed(2);
+}
+
+function coachTime(round, tick) {
+  const seconds = Math.floor(tick * round.tickMs / 1000);
+  return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+}
+
+function tradeReconciliation(round, seat, trades = tradeHindsight(round, seat)) {
+  const payout = payoutBreakdown(round, round.players[seat]);
+  const edge = trades.reduce((sum, trade) => sum + trade.edge, 0);
+  const adjustment = payout.netTradingCashflow - edge;
+  return { edge, adjustment, profit: edge + adjustment + payout.goalCardPayout + payout.majorityPayout - payout.ante };
+}
+
+function oddsHistory(round, seat) {
+  const starting = round.players[seat].initialInventory;
+  const hand = [...starting];
+  const odds = (trades) => estimateRead(starting, hand, trades, seat).map((row) => row.tapeOdds);
+  return [{ tick: 0, odds: odds([]) }, ...round.roundLog.map((trade, index) => {
+    if (trade.buyerIdx === seat) hand[trade.suit] += 1;
+    if (trade.sellerIdx === seat) hand[trade.suit] -= 1;
+    return { tick: trade.tick, odds: odds(round.roundLog.slice(0, index + 1)) };
+  })];
+}
+
+function coachChart(round, seat, lockedTick) {
+  const history = oddsHistory(round, seat);
+  const goal = round.goalSuitIdx;
+  const leads = (point) => point.odds[goal] === Math.max(...point.odds);
+  const first = history.find(leads);
+  const lastLoss = history.findLastIndex((point) => !leads(point));
+  const sustained = history[lastLoss + 1];
+  const summary = first
+    ? `Your read first put the goal on top or tied at ${coachTime(round, first.tick)}.` +
+      (sustained ? ` It stayed there from ${coachTime(round, sustained.tick)}.` : "")
+    : "Your read never put the goal on top.";
+  const end = Math.max(1, round.tick, ...history.map((point) => point.tick));
+  const x = (tick) => 18 + 364 * tick / end;
+  const series = SUITS.map((_, suit) => {
+    const points = [...history, { ...history.at(-1), tick: end }].map((point) =>
+      `${x(point.tick)},${110 - point.odds[suit] * 100}`).join(" ");
+    return `<polyline points="${points}" class="odds-series odds-${suit}${suit === goal ? " odds-goal" : ""}"/>`;
+  }).join("");
+  const lock = lockedTick === null ? "" : `<path class="odds-lock" d="M${x(lockedTick)} 10V110"/>`;
+  const markers = round.roundLog.filter((trade) => trade.buyerIdx === seat || trade.sellerIdx === seat)
+    .map((trade) => `<circle class="odds-trade" cx="${x(trade.tick)}" cy="113" r="2.5"/>`).join("");
+  return `<p id="coachOddsSummary">${summary}</p>
+    <svg class="coach-chart" viewBox="0 0 400 135" role="img" aria-label="${summary}">
+      <path class="odds-axis" d="M18 10V110H382"/>
+      ${series}${lock}${markers}
+      <text x="18" y="131">0:00</text><text x="382" y="131" text-anchor="end">${coachTime(round, end)}</text>
+    </svg>
+    <p class="odds-legend">${SUITS.map((suit, index) => `<span class="odds-${index}">${suit.name}${index === goal ? " (goal)" : ""}</span>`).join(" · ")}
+      · Dots: your trades${lockedTick === null ? "" : ` · Dashed line: prediction locked at ${coachTime(round, lockedTick)}`}</p>`;
+}
+
+function coachTakeaways(round, trades, missed) {
+  const goal = SUITS[round.goalSuitIdx].name;
+  const goalTrades = trades.filter((trade) => trade.suit === round.goalSuitIdx);
+  const groups = [true, false].map((buy) => goalTrades.filter((trade) => trade.buy === buy && trade.edge < 0));
+  const notes = groups.filter((group) => group.length).map((group) => {
+    const impact = -group.reduce((sum, trade) => sum + trade.edge, 0);
+    return { impact, text: `You ${group[0].buy ? "bought" : "sold"} ${group.length} goal ${group.length === 1 ? "card" : "cards"} at a total hindsight cost of $${impact.toFixed(2)}. The goal was ${goal}.` };
+  });
+  if (missed.length) notes.push({ impact: missed[0].edge, text: `The largest missed quote was worth $${missed[0].edge.toFixed(2)} in hindsight.` });
+  if (!goalTrades.length) notes.push({ impact: 0, text: `You made 0 trades in the goal suit, ${goal}.` });
+  const best = trades.filter((trade) => trade.edge > 0).sort((a, b) => b.edge - a.edge)[0];
+  if (best) notes.push({ impact: best.edge, text: `Your best trade added $${best.edge.toFixed(2)} in hindsight on one ${SUITS[best.suit].name} card.` });
+  if (!notes.length) notes.push({ impact: 0, text: `You traded ${goalTrades.length} goal ${goalTrades.length === 1 ? "card" : "cards"} with no positive or negative hindsight edge on those trades.` });
+  return notes.sort((a, b) => b.impact - a.impact).slice(0, 3).map((note) => note.text);
 }
 
 const BOT_LESSONS = {
@@ -93,6 +208,7 @@ const arenaTeaching = (() => {
 
   function render() {
     renderPrediction();
+    if (!game.revealGoal || !game.humanSeated) byId("roundCoach").hidden = true;
     const seat = humanPlayerIndex();
     read.hidden = !isPlayMode();
     if (seat < 0 || !isPlayMode()) {
@@ -397,9 +513,29 @@ const arenaTeaching = (() => {
     predictionResult.textContent = "";
   }
 
+  function renderCoach(seat) {
+    const coach = byId("roundCoach");
+    const trades = tradeHindsight(game, seat);
+    const missed = missedEdges(game, seat);
+    const totals = tradeReconciliation(game, seat, trades);
+    const payout = payoutBreakdown(game, game.players[seat]);
+    byId("coachTrades").innerHTML = trades.length ? trades.map((trade) => `<tr>
+      <td>${coachTime(game, trade.tick)}</td><td>${trade.buy ? "Buy" : "Sell"}</td>
+      <td>${SUITS[trade.suit].name}</td><td>$${trade.price.toFixed(2)}</td>
+      <td>${game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name}</td>
+      <td>${coachMoney(trade.value)}</td><td class="${trade.edge > 0 ? "pos" : trade.edge < 0 ? "neg" : ""}">${coachMoney(trade.edge)}</td></tr>`).join("")
+      : '<tr><td colspan="7">You made no trades.</td></tr>';
+    byId("coachTotals").textContent = `Net profit ${coachMoney(totals.profit)} = trade edge ${coachMoney(totals.edge)}, payout adjustment ${coachMoney(totals.adjustment)}, goal cards ${coachMoney(payout.goalCardPayout)}, majority ${coachMoney(payout.majorityPayout)}, and ante ${coachMoney(-payout.ante)}.`;
+    byId("coachOdds").innerHTML = coachChart(game, seat, lockedTick);
+    byId("coachMissed").innerHTML = missed.length ? missed.map((quote) => `<li>${coachTime(game, quote.tick)} · ${quote.buy ? "Buy" : "Sell"} ${SUITS[quote.suit].name} at $${quote.price} with ${game.players[quote.owner].name} · ${coachMoney(quote.edge)} in hindsight</li>`).join("") : "<li>No positive missed edges in the recorded quotes.</li>";
+    byId("coachTakeaways").innerHTML = coachTakeaways(game, trades, missed).map((note) => `<li>${note}</li>`).join("");
+    coach.hidden = false;
+  }
+
   function roundEnded() {
     const seat = humanPlayerIndex();
-    if (seat < 0 || step >= 0) return;
+    if (seat < 0 || step >= 0 || !game.revealGoal) return;
+    renderCoach(seat);
     const picked = prediction.value !== "";
     const correct = picked && Number(prediction.value) === game.goalSuitIdx;
     if (picked) {

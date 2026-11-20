@@ -314,7 +314,7 @@ for (const id of ['hunter', 'banker', 'detective', 'bluffer']) {
       const round = new FiggieViewerGame();
       round.reset(60000, 7);
       round.loadDeal({ inventories: [[3,3,2,2],[2,4,2,2],[1,2,3,4],[2,3,3,2]], goalSuitIdx: 0,
-        playerSpecs: [{name:"You",isHuman:true}, ...BOT_NAMES.map(name => ({name})).filter(name => name !== "Detective")] });
+        playerSpecs: [{name:"You",isHuman:true}, ...BOT_NAMES.map(name => ({name})).filter(player => player.name !== "Detective")] });
       const suit = id === "banker" || id === "hunter" && pass ? 2 : id === "bluffer" && pass ? 2 : 0;
       if (id !== "banker" || pass) {
         const buyer = id === "bluffer" ? 3 : 1;
@@ -331,3 +331,68 @@ for (const id of ['hunter', 'banker', 'detective', 'bluffer']) {
     assert.deepEqual(result, [true, false]);
   });
 }
+
+test('hindsight undoes goal and non-goal sales, majority flips and ties', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const values = plain(run(`[
+    [[4,2,1,1], 0], [[4,2,1,1], 1], [[2,3,2,1], 0], [[3,3,1,1], 0],
+  ].map(([counts, suit]) => {
+    const round = new FiggieViewerGame();
+    round.reset(60000, 7);
+    round.goalSuitIdx = 0;
+    round.players.forEach((p,i) => { p.inventory = [counts[i], 2, 2, 2]; });
+    // Restore pre-trade holdings so the real matcher produces the final state.
+    round.players[0].inventory[suit] += 1;
+    round.players[1].inventory[suit] -= 1;
+    round.applyAction(1, {kind:"quote_bid", suit, price:20});
+    round.applyAction(0, {kind:"sell", suit});
+    round.stop(true);
+    const [trade] = tradeHindsight(round, 0);
+    const totals = tradeReconciliation(round, 0);
+    return [trade.value, trade.edge, totals.profit, round.players[0].cash - 350];
+  })`));
+  assert.deepEqual(values.map(row => row.slice(0, 2)), [[10, 10], [0, 20], [130, -110], [70, -50]]);
+  for (const row of values) assert.equal(row[2], row[3]);
+});
+
+test('coach recording leaves seeded trades unchanged', () => {
+  function replay(capture) {
+    const { run } = load();
+    run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+    return plain(run(`(() => {
+      game.captureCoach = ${capture};
+      game.start(60000, 19, 1, {humanSeated:true, playerSpecs:[
+        {name:"You",isHuman:true}, ...BOT_NAMES.slice(0,3).map((name,strategy) => ({name,strategy}))
+      ]});
+      figgieTeaching.roundStarted();
+      while (game.running) game.step(true);
+      return {log:game.roundLog, rng:game.rngState, frames:game.coachSnapshots.length};
+    })()`));
+  }
+  const on = replay(true);
+  const off = replay(false);
+  assert.ok(on.log.length);
+  assert.equal(on.frames, 240);
+  assert.equal(off.frames, 0);
+  assert.equal(on.rng, off.rng);
+  assert.deepEqual(on.log, off.log);
+});
+
+test('missed edges exclude same-tick actions and unaffordable offers', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const quotes = plain(run(`(() => {
+    game.reset(60000, 19);
+    game.goalSuitIdx = 0;
+    game.players.forEach((player) => { player.inventory = [2,2,2,2]; });
+    const frame = (tick, price) => ({tick,cash:0,books:[
+      {held:2,bid:null,ask:{owner:1,price:1}},
+      {held:2,bid:{owner:1,price},ask:null},
+    ]});
+    game.humanActionTicks.add(5);
+    game.coachSnapshots.push(frame(5,20),frame(6,12),frame(7,12));
+    return missedEdges(game,0);
+  })()`));
+  assert.deepEqual(quotes.map(quote => [quote.tick, quote.edge]), [[6, 12]]);
+});

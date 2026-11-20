@@ -181,6 +181,22 @@
       <p class="small attribution">Learn from the <a href="https://www.figgie.com/">official Figgie game</a> and <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Jane Street’s gameplay video</a>. This independent educational implementation is not affiliated with or endorsed by Jane Street.</p>
     </section>
 
+    <section id="roundCoach" class="panel teaching" hidden aria-labelledby="coachTitle">
+      <h2 id="coachTitle">Review your round</h2>
+      <p>This review uses hindsight. Each trade is undone on its own. Settlement value isolates the payout change, and edge includes the price you paid or received.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable hindsight trades">
+        <table><thead><tr><th>Time</th><th>Side</th><th>Suit</th><th>Price</th><th>Counterparty</th><th>Value at settlement</th><th>Edge</th></tr></thead>
+        <tbody id="coachTrades"></tbody></table>
+      </div>
+      <p id="coachTotals"></p>
+      <p class="small">The payout adjustment removes overlapping effects from individual trade estimates, so actual payouts are counted once.</p>
+      <h3>Your read over time</h3>
+      <div id="coachOdds"></div>
+      <h3>Missed edges in hindsight</h3>
+      <ul id="coachMissed"></ul>
+      <h3>Takeaways</h3>
+      <ul id="coachTakeaways"></ul>
+    </section>
     <section class="explanation panel" id="round-explanation" hidden aria-labelledby="explanation-title">
       <h2 class="section-title" id="explanation-title">Understand this round</h2>
       <p id="settlementExplanation"></p>
