@@ -3,6 +3,24 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Teaching in the browser arena — November 20, 2026
+
+The guided first round uses a fixed deal and scripted counterparty actions.
+Your read displays starting-hand odds alongside heuristic odds that incorporate
+other players’ public aggressive trades. Optional goal predictions are scored
+after settlement. The tutorial prompt, odds visibility, prediction tally, and
+lesson progress use local browser storage when available.
+
+| Lesson | Seed | Tell checked in a one-minute replay | Pass condition |
+|---|---:|---|---|
+| Hunter | 5 | At least two early aggressive buys in its favorite suit | Predict the goal |
+| Banker | 1 | Posts both bids and offers | Finish with positive profit |
+| Detective | 19 | Buys after the opening fifth in a suit with positive flow | Predict the goal |
+| Bluffer | 4 | At least two early aggressive buys in its decoy suit | Sell a card to Bluffer |
+
+The teaching script ships with the standalone HTML, wheel, and Pages build.
+The simulator and its scripted policies retain version 2.0.0.
+
 ## Playable browser arena — November 20, 2026
 
 Play seats a human against three chosen scripted opponents and keeps their hands
