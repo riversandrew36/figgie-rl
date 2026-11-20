@@ -474,3 +474,15 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 #lessonLink { width: 100%; }
 #tutorialCheckLabel { display: block; margin: 0 0 0.75rem; }
 #tutorialCheck { display: block; max-width: 100%; margin-top: 0.35rem; }
+
+.coach-chart { display: block; width: 100%; max-width: 640px; }
+.coach-chart text { fill: var(--text); font-size: 10px; }
+.odds-series { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.odds-goal { stroke-width: 3.5; }
+.odds-0 { color: var(--accent); }
+.odds-1 { color: var(--positive); }
+.odds-2 { color: var(--negative); }
+.odds-3 { color: var(--text); }
+.odds-lock { stroke: var(--muted); stroke-dasharray: 3 3; }
+.odds-axis { fill: none; stroke: var(--muted); }
+.odds-trade { fill: var(--text); }

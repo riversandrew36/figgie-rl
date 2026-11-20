@@ -130,6 +130,8 @@ class FiggieViewerGame {
     this.tradeId = 0;
     this.tradeTape = [];
     this.roundLog = [];
+    this.coachSnapshots = [];
+    this.humanActionTicks = new Set();
     this.revealGoal = false;
     this.winnerIdxs = [];
     this.winnerLabel = "Pending";
@@ -232,6 +234,9 @@ class FiggieViewerGame {
       && (this.players[latest.buyerIdx]?.isHuman || this.players[latest.sellerIdx]?.isHuman);
     this.lastActionMessage = involved ? latest.line : previousMessage;
     this.tick += 1;
+    if (this.humanSeated && this.captureCoach !== false && globalThis.coachSnapshot) {
+      globalThis.coachSnapshot(this, this.players.findIndex((player) => player.isHuman));
+    }
     this.elapsedMs = this.humanSeated && !force
       ? this.clockOffset + Date.now() - this.clockStarted : this.elapsedMs + this.tickMs;
     render();
@@ -1411,6 +1416,7 @@ function performHumanAction(kind, suitIdx) {
   const playerIdx = humanPlayerIndex();
   if (playerIdx < 0 || !game.running || !Number.isInteger(suitIdx)) return;
   if (globalThis.figgieTeaching?.beforeAction(kind, suitIdx) === false) return;
+  game.humanActionTicks.add(game.tick);
   if (kind === "quote_bid" || kind === "quote_ask") {
     selectedQuoteSide = kind;
     game.humanPriceDrafts[suitIdx] = Number(document.querySelector?.(`.human-price[data-suit="${suitIdx}"]`)?.value);
