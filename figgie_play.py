@@ -28,7 +28,7 @@ def _as_directory(root: object) -> Path | None:
 def arena_directory() -> Path:
     """Locate the packaged arena assets.
 
-    Wheel installs and editable installs both expose the HTML, CSS, and JS
+    Wheel installs and editable installs expose the HTML, CSS, JS, and preview PNG
     through importlib.resources. When those resources are already real files,
     the package directory is used directly. Otherwise the assets are
     copied into a temporary directory that lives until the process exits.

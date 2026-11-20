@@ -417,3 +417,18 @@ test('daily deal settles when storage is blocked', async ({ page }) => {
   await completeRound(page);
   await expect(page.locator('#dailyResultStreak')).toContainText('wasn’t saved');
 });
+
+test('link preview metadata points to a packaged image under the Pages prefix', async ({ page }) => {
+  await page.goto('/figgie-rl/');
+  for (const tag of ['og:title', 'og:description', 'og:url', 'og:image']) {
+    await expect(page.locator(`meta[property="${tag}"]`)).toHaveAttribute('content', /\S/);
+  }
+  for (const tag of ['twitter:card', 'twitter:title', 'twitter:description', 'twitter:image']) {
+    await expect(page.locator(`meta[name="${tag}"]`)).toHaveAttribute('content', /\S/);
+  }
+  const image = new URL(await page.locator('meta[property="og:image"]').getAttribute('content'));
+  expect(image.origin).toBe('https://riversandrew36.github.io');
+  const response = await page.request.get(image.pathname);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['content-type']).toContain('image/png');
+});

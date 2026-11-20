@@ -88,3 +88,13 @@ def _fetch(url: str) -> bytes:
             last_error = exc
             time.sleep(0.05)
     raise AssertionError(f"failed to fetch {url}: {last_error}")
+
+
+def test_link_preview_image_has_expected_size() -> None:
+    from PIL import Image
+
+    path = arena_directory() / "og-image.png"
+    assert path.stat().st_size < 300_000
+    with Image.open(path) as image:
+        assert image.format == "PNG"
+        assert image.size == (1200, 630)
