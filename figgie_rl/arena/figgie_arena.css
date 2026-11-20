@@ -486,3 +486,5 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .odds-lock { stroke: var(--muted); stroke-dasharray: 3 3; }
 .odds-axis { fill: none; stroke: var(--muted); }
 .odds-trade { fill: var(--text); }
+.profit-spark { display: block; width: min(100%, 240px); }
+#resetCoachProgress { min-height: 44px; margin-bottom: 0.5rem; }
