@@ -488,3 +488,9 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .odds-trade { fill: var(--text); }
 .profit-spark { display: block; width: min(100%, 240px); }
 #resetCoachProgress { min-height: 44px; margin-bottom: 0.5rem; }
+
+.coach-chart .odds-scale { fill: var(--muted); font-size: 12px; }
+.odds-grid { stroke: var(--muted); stroke-opacity: 0.25; }
+.odds-leader { fill: none; stroke: currentColor; }
+.coach-chart .odds-end-label { fill: currentColor; font-size: 13px; }
+.odds-goal-label { font-weight: 700; }

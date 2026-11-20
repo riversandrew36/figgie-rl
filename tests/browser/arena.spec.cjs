@@ -307,30 +307,42 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
   await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
     get() { throw new DOMException('Storage blocked', 'SecurityError'); },
   }));
-  await page.goto('/figgie-rl/?seed=4&duration=60000&market=players&version=2.0.0&mode=play&opponents=Hunter%2CBanker%2CBluffer');
-  await page.locator('#playBtn').click();
-  await page.locator('#pauseBtn').click();
+  await page.goto('/figgie-rl/?seed=6&duration=60000&market=players&version=2.0.0&mode=play&opponents=Hunter%2CBanker%2CBluffer');
+  await page.evaluate(() => {
+    document.getElementById('playBtn').click();
+    document.getElementById('pauseBtn').click();
+  });
   await page.locator('#predictionPick').selectOption('0');
   await page.locator('#predictionLock').click();
   await expect(page.locator('#predictionPick')).toBeDisabled();
-  const suit = await page.evaluate(() => {
-    const suit = game.players[1].inventory.findIndex((count) => count > 0);
-    game.clearAllQuotes();
-    game.applyAction(1, {kind: 'quote_ask', suit, price: 8});
-    render();
-    return suit;
-  });
-  await page.locator(`[data-human-action="buy"][data-suit="${suit}"]`).click();
+  for (let buy = 0; buy < 2; buy += 1) {
+    await page.evaluate(() => {
+      game.applyAction(2, {kind: 'quote_ask', suit: 3, price: 8});
+      render();
+    });
+    await page.locator('[data-human-action="buy"][data-suit="3"]').click();
+  }
   await expect(page.locator('#roundCoach')).toBeHidden();
   await completeRound(page);
   await expect(page.locator('#roundCoach')).toBeVisible();
-  await expect(page.locator('#coachTrades')).toContainText('Hunter');
+  await expect(page.locator('#coachTrades')).toContainText('Banker');
   await expect(page.getByRole('img', {name: /Your read/})).toBeVisible();
   await expect(page.locator('#coachOdds')).toContainText('prediction locked');
   await expect(page.locator('#coachTakeaways li').first()).toBeVisible();
   await expect(page.locator('#edgeStats')).toContainText('Average hindsight edge per trade');
   await expect(page.locator('#profitTrend svg')).toBeVisible();
-  await expect(page.locator('#coachTotals')).toContainText('Net profit');
+  await expect(page.locator('#coachTotals')).toContainText('Combined majority effect (−$100.00)');
+  await expect(page.locator('#coachInteraction')).toBeVisible();
+  await expect(page.locator('#coachPayouts')).toContainText('Actual payouts');
+  await expect(page.locator('.odds-scale')).toHaveText(['0%', '25%', '50%', '75%', '100%']);
+  await expect(page.locator('.odds-goal-label .odds-end-label')).toHaveText(/^Diamonds \d+%$/);
+  const labelsFit = await page.locator('.odds-end-label').evaluateAll((labels) => {
+    const chart = labels[0].ownerSVGElement.getBoundingClientRect();
+    const boxes = labels.map((label) => label.getBoundingClientRect());
+    return boxes.every((box, index) => box.right <= chart.right &&
+      (index === 0 || box.top >= boxes[index - 1].bottom));
+  });
+  expect(labelsFit).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('#roundCoach').screenshot({path: info.outputPath('coach.png')});
   await page.locator('#coachShare').click();
@@ -340,7 +352,7 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
   await page.locator('#coachReplay').click();
   await expect(page.locator('#roundCoach')).toBeHidden();
   expect(await page.evaluate(() => [game.seed, game.durationMs, game.players.map((p) => p.name)])).toEqual(
-    [4, 60000, ['You','Hunter','Banker','Bluffer']]);
+    [6, 60000, ['You','Hunter','Banker','Bluffer']]);
   await page.locator('#playBtn').click();
   await page.locator('#watchModeInput').check();
   await page.locator('#playBtn').click();
