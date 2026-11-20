@@ -145,20 +145,48 @@ function coachChart(round, seat, lockedTick) {
       (sustained ? ` It stayed there from ${coachTime(round, sustained.tick)}.` : "")
     : "Your read never put the goal on top.";
   const end = Math.max(1, round.tick, ...history.map((point) => point.tick));
-  const x = (tick) => 18 + 364 * tick / end;
+  const left = 42;
+  const right = 286;
+  const top = 14;
+  const bottom = 134;
+  const x = (tick) => left + (right - left) * tick / end;
+  const y = (odds) => bottom - (bottom - top) * odds;
+  const grid = [0, 25, 50, 75, 100].map((percent) => {
+    const row = y(percent / 100);
+    return `<path class="odds-grid" d="M${left} ${row}H${right}"/>
+      <text class="odds-scale" x="${left - 5}" y="${row}" text-anchor="end" dominant-baseline="middle">${percent}%</text>`;
+  }).join("");
   const series = SUITS.map((_, suit) => {
     const points = [...history, { ...history.at(-1), tick: end }].map((point) =>
-      `${x(point.tick)},${110 - point.odds[suit] * 100}`).join(" ");
+      `${x(point.tick)},${y(point.odds[suit])}`).join(" ");
     return `<polyline points="${points}" class="odds-series odds-${suit}${suit === goal ? " odds-goal" : ""}"/>`;
   }).join("");
-  const lock = lockedTick === null ? "" : `<path class="odds-lock" d="M${x(lockedTick)} 10V110"/>`;
+  const labels = history.at(-1).odds.map((odds, suit) => ({ odds, suit, row: y(odds) }))
+    .sort((a, b) => a.row - b.row);
+  const gap = 16;
+  labels.forEach((label, index) => {
+    label.labelRow = Math.max(label.row, index === 0 ? top : labels[index - 1].labelRow + gap);
+  });
+  for (let index = labels.length - 1; index >= 0; index -= 1) {
+    const limit = index === labels.length - 1 ? bottom : labels[index + 1].labelRow - gap;
+    labels[index].labelRow = Math.min(labels[index].labelRow, limit);
+  }
+  const endLabels = labels.map(({ odds, suit, row, labelRow }) =>
+    `<g class="odds-${suit}${suit === goal ? " odds-goal-label" : ""}">
+      <path class="odds-leader" d="M${right} ${row}L${right + 13} ${labelRow}"/>
+      <text class="odds-end-label" data-suit="${suit}" x="${right + 17}" y="${labelRow}" dominant-baseline="middle">${SUITS[suit].name} ${Math.round(100 * odds)}%</text>
+    </g>`).join("");
+  const lock = lockedTick === null ? "" : `<path class="odds-lock" d="M${x(lockedTick)} ${top}V${bottom}"/>`;
   const markers = round.roundLog.filter((trade) => trade.buyerIdx === seat || trade.sellerIdx === seat)
-    .map((trade) => `<circle class="odds-trade" cx="${x(trade.tick)}" cy="113" r="2.5"/>`).join("");
+    .map((trade) => `<circle class="odds-trade" cx="${x(trade.tick)}" cy="${bottom + 4}" r="2.5"/>`).join("");
   return `<p id="coachOddsSummary">${summary}</p>
-    <svg class="coach-chart" viewBox="0 0 400 135" role="img" aria-label="${summary}">
-      <path class="odds-axis" d="M18 10V110H382"/>
-      ${series}${lock}${markers}
-      <text x="18" y="131">0:00</text><text x="382" y="131" text-anchor="end">${coachTime(round, end)}</text>
+    <svg class="coach-chart" viewBox="0 0 400 180" role="img" aria-label="${summary}">
+      ${grid}
+      <path class="odds-axis" d="M${left} ${top}V${bottom}H${right}"/>
+      ${series}${lock}${markers}${endLabels}
+      <text x="${left}" y="155">0:00</text>
+      <text x="${right}" y="155" text-anchor="end">${coachTime(round, end)}</text>
+      <text x="${(left + right) / 2}" y="172" text-anchor="middle">Round time</text>
     </svg>
     <p class="odds-legend">${SUITS.map((suit, index) => `<span class="odds-${index}">${suit.name}${index === goal ? " (goal)" : ""}</span>`).join(" · ")}
       · Dots: your trades${lockedTick === null ? "" : ` · Dashed line: prediction locked at ${coachTime(round, lockedTick)}`}</p>`;
