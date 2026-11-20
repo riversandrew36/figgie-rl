@@ -5,6 +5,13 @@ async function completeRound(page) {
   await expect(page.locator('#round-explanation')).toBeVisible();
 }
 
+test('a first visit lands in Play with a one-minute round', async ({ page }) => {
+  await page.goto('/figgie-rl/');
+  await expect(page.locator('#playModeInput')).toBeChecked();
+  await expect(page.locator('#durationSelect')).toHaveValue('60000');
+  await expect(page.locator('#opponentPicker, .opponent-picker').first()).toBeVisible();
+});
+
 test('learner can control, understand, export and repeat a round without an account', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -69,7 +76,7 @@ test('share links use clipboard when available and provide selectable fallback',
   await page.locator('#shareBtn').click();
   await expect(page.locator('#shareStatus')).toContainText('copied');
   const link = await page.locator('#shareUrl').inputValue();
-  expect(new URL(link).search).toBe('?seed=83&duration=60000&market=players&version=2.0.0');
+  expect(new URL(link).search).toBe('?seed=83&duration=60000&market=players&version=2.0.0&mode=play');
   expect(await page.evaluate(() => window.copiedText)).toBe(link);
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
     configurable: true, value: { writeText: async () => { throw Error('denied'); } },

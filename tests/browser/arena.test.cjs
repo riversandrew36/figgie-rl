@@ -111,6 +111,28 @@ test('player mode is the default, accepts the official duration, and keeps old l
   assert.equal(run('scenarioUrl()'), 'https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0');
 });
 
+test('a fresh visit opens Play with a one-minute round; shared links keep their mode', () => {
+  const fresh = load();
+  assert.equal(fresh.elements.get('playModeInput').checked, true);
+  assert.equal(fresh.elements.get('watchModeInput').checked, false);
+  assert.equal(fresh.run('scenarioFromUrl(window.location.href).durationMs'), 60000);
+
+  const legacy = load('https://example.test/figgie-rl/?seed=9');
+  assert.equal(legacy.run('scenarioFromUrl(window.location.href).durationMs'), 30000);
+  assert.equal(legacy.elements.get('playModeInput').checked, false);
+
+  const sharedWatch = load('https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0');
+  assert.equal(sharedWatch.elements.get('watchModeInput').checked, true);
+
+  const sharedPlay = load('https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0&mode=play');
+  assert.equal(sharedPlay.elements.get('playModeInput').checked, true);
+  sharedPlay.run("game.reset(60000, 9, {marketMode: 'players', humanSeated: true})");
+  assert.equal(
+    sharedPlay.run('scenarioUrl()'),
+    'https://example.test/figgie-rl/?seed=9&duration=60000&market=players&version=2.0.0&mode=play',
+  );
+});
+
 test('official player quotes are backed, cross at the resting price, and clear the whole book', () => {
   const { run } = load();
   run(`game.loadDeal({goalSuitIdx: 0, inventories: [[2,3,3,2],[3,2,3,2],[3,3,2,2],[2,2,2,4]]});`);

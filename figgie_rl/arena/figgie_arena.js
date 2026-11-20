@@ -7,23 +7,37 @@ const PRICE_FLOOR = 1;
 const PRICE_CAP = 60;
 const EXPECTED_POT_REMAINDER = 320 / 3;
 
-function normalizeScenario(seed, durationMs) {
+// New visitors get a one-minute round. Links from before version 2.0.0 fall back
+// to 30s, the old default, so they still reproduce.
+const DEFAULT_DURATION_MS = 60000;
+const LEGACY_DEFAULT_DURATION_MS = 30000;
+
+function normalizeScenario(seed, durationMs, fallbackMs = DEFAULT_DURATION_MS) {
   return {
     seed: seed !== null && String(seed).trim() !== "" && Number.isSafeInteger(Number(seed))
       ? Number(seed) : 7,
-    durationMs: SUPPORTED_DURATIONS.includes(Number(durationMs)) ? Number(durationMs) : 30000,
+    durationMs: SUPPORTED_DURATIONS.includes(Number(durationMs)) ? Number(durationMs) : fallbackMs,
   };
 }
 
 function scenarioFromUrl(url) {
   const params = new URL(url).searchParams;
-  const scenario = normalizeScenario(params.get("seed"), params.get("duration"));
   const hasScenario = params.has("seed") || params.has("duration");
   const requestedMode = params.get("market");
   const oldVersion = params.has("version") && params.get("version") !== SIMULATION_VERSION;
   const legacyLink = hasScenario && (!requestedMode || oldVersion || !params.has("version"));
+  const scenario = normalizeScenario(
+    params.get("seed"),
+    params.get("duration"),
+    legacyLink ? LEGACY_DEFAULT_DURATION_MS : DEFAULT_DURATION_MS,
+  );
+  // A fresh visit opens in Play. A shared link replays a bot round in Watch
+  // unless it was shared from Play.
+  const arenaMode = legacyLink ? "watch"
+    : params.get("mode") === "play" || (!hasScenario && params.get("mode") !== "watch") ? "play" : "watch";
   return {
     ...scenario,
+    arenaMode,
     marketMode: legacyLink ? "classic" : (MARKET_MODES.includes(requestedMode) ? requestedMode : "players"),
     compatibilityNote: legacyLink ? "Older scenario link opened in Classic mode to preserve its original rules." : "",
   };
@@ -1689,6 +1703,10 @@ resetStrengthBtn.addEventListener("click", () => {
 const initialScenario = scenarioFromUrl(window.location.href);
 seedInput.value = initialScenario.seed;
 durationSelect.value = initialScenario.durationMs;
+if (playModeInput && watchModeInput) {
+  playModeInput.checked = initialScenario.arenaMode === "play";
+  watchModeInput.checked = !playModeInput.checked;
+}
 if (marketModeSelect) marketModeSelect.value = initialScenario.marketMode;
 game.reset(initialScenario.durationMs, initialScenario.seed, { marketMode: initialScenario.marketMode });
 if (compatibilityNoteEl) {
@@ -1800,6 +1818,7 @@ function scenarioUrl() {
   url.searchParams.set("duration", scenario.durationMs);
   url.searchParams.set("market", game.marketMode);
   url.searchParams.set("version", SIMULATION_VERSION);
+  if (game.humanSeated) url.searchParams.set("mode", "play");
   return url.href;
 }
 

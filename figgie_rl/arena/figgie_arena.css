@@ -112,6 +112,11 @@ body::before {
 .opponent-picker label { display: inline-flex; align-items: center; gap: 0.35rem; }
 .mode-toggle input,
 .opponent-picker input { width: auto; margin: 0; accent-color: var(--accent); }
+/* Keep the chosen mode readable while the inputs are disabled mid-round. */
+.mode-toggle input:disabled,
+.opponent-picker input:disabled { opacity: 1; }
+.mode-toggle label:has(input:checked),
+.opponent-picker label:has(input:checked) { color: var(--accent); font-weight: 700; }
 .play-links { font-size: 0.78rem; line-height: 1.4; }
 .attribution { line-height: 1.5; }
 .compatibility-note { border-left: 3px solid var(--accent); padding: 0.55rem 0.75rem; background: #ffd16614; }
