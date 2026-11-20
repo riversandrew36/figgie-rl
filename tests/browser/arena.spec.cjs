@@ -206,6 +206,11 @@ test('keyboard, blocked storage, invalid URLs and assets work under a repository
   }
 });
 
+async function answerTutorial(page, answer) {
+  await page.locator('#tutorialCheck').selectOption(String(answer));
+  await page.locator('#tutorialNext').click();
+}
+
 async function tutorialStep(page, step) {
   await expect(page.locator('#tutorialInstruction')).toContainText(`Step ${step} of 7`);
 }
@@ -215,9 +220,9 @@ test('guided round teaches crossing and settlement', async ({ page }, info) => {
   await page.goto('/figgie-rl/');
   await page.locator('#promptLearn').click();
   await tutorialStep(page, 1);
-  await page.locator('#tutorialNext').click();
+  await answerTutorial(page, 1);
   await tutorialStep(page, 2);
-  await page.locator('#tutorialNext').click();
+  await answerTutorial(page, 0);
   await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
   await tutorialStep(page, 4);
   await expect(page.locator('#goal')).toContainText('Hidden');
@@ -226,11 +231,11 @@ test('guided round teaches crossing and settlement', async ({ page }, info) => {
   await page.locator('#tutorialBack').click();
   await tutorialStep(page, 3);
   await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
-  await page.locator('#tutorialNext').click();
+  await answerTutorial(page, 1);
   await page.locator('[data-human-action="quote_ask"][data-suit="2"]').click();
   await tutorialStep(page, 6);
   await page.locator('#yourRead').screenshot({ path: info.outputPath('your-read.png') });
-  await page.locator('#tutorialNext').click();
+  await answerTutorial(page, 0);
   await tutorialStep(page, 7);
   await expect(page.locator('#humanPayout')).toBeVisible();
   await expect(page.locator('#tutorialFinish a[href="https://www.figgie.com/"]')).toBeVisible();
@@ -248,6 +253,8 @@ test('guided round works using only the keyboard with storage blocked', async ({
   await page.keyboard.press('Enter');
   await tutorialStep(page, 1);
   for (let step = 2; step <= 7; step += 1) {
+    const answerKey = { 2: '2', 3: '1', 5: '2', 7: '1' }[step];
+    if (answerKey) await page.keyboard.press(answerKey);
     await page.keyboard.press('Enter');
     await tutorialStep(page, step);
   }
@@ -258,4 +265,30 @@ test('guided round works using only the keyboard with storage blocked', async ({
   await page.keyboard.press('Enter');
   await page.locator('#tutorialSkip').click();
   await expect(page.locator('#tutorial')).toBeHidden();
+  await page.getByRole('button', { name: 'Start Hunter lesson' }).click();
+  await page.locator('#predictionPick').selectOption(await page.evaluate(() => String(game.goalSuitIdx)));
+  await completeRound(page);
+  await expect(page.locator('#lessonStatus')).toContainText('Lesson passed');
+  await expect(page.locator('#predictionStats')).toContainText('1 correct out of 1');
+});
+
+test('share a lesson, pass it, and save the goal prediction', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/figgie-rl/');
+  await page.locator('#lessons').screenshot({ path: info.outputPath('lessons.png') });
+  await page.getByRole('button', { name: 'Share Hunter lesson' }).click();
+  const link = await page.locator('#lessonLink').inputValue();
+  expect(new URL(link).search).toBe('?lesson=hunter');
+  await page.goto(link);
+  await expect(page.locator('#seedInput')).toHaveValue('5');
+  await page.getByRole('button', { name: 'Start Hunter lesson' }).click();
+  const expected = await page.evaluate(() => String(game.goalSuitIdx));
+  await page.locator('#predictionPick').selectOption(expected);
+  await completeRound(page);
+  await expect(page.locator('#lessonStatus')).toContainText('Lesson passed');
+  await expect(page.locator('#predictionResult')).toContainText('Correct');
+  await expect(page.locator('#predictionStats')).toContainText('1 correct out of 1');
+  await page.reload();
+  await expect(page.locator('#lesson-hunter')).toContainText('Passed');
+  await expect(page.locator('#predictionStats')).toContainText('1 correct out of 1');
 });

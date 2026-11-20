@@ -262,3 +262,45 @@ test('Your read uses the detective weighting and ignores hidden deal data', () =
   const total = weighted.reduce((a, b) => a + b);
   result[0].forEach((row, suit) => assert.equal(row.tapeOdds, weighted[suit] / total));
 });
+
+test('every fixed lesson seed demonstrates its bot tell within one minute', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const tells = plain(run(`Object.fromEntries(Object.entries(BOT_LESSONS).map(([id, lesson]) => {
+    const replay = new FiggieViewerGame();
+    replay.reset(60000, lesson.seed, { humanSeated: true, playerSpecs: [
+      { name: 'You', isHuman: true },
+      ...lesson.opponents.map(name => ({ name, strategy: BOT_NAMES.indexOf(name) })),
+    ] });
+    const seat = lesson.opponents.findIndex(name => name.toLowerCase() === id) + 1;
+    const bot = replay.players[seat];
+    const prior = goalSuitPosterior(bot.initialInventory);
+    const favorite = replay.argmax(prior);
+    const decoy = replay.argmin(prior.map((p, suit) => suit === favorite ? Infinity : p));
+    const quoteSides = new Set();
+    let trades = 0;
+    for (let tick = 0; tick < 240; tick += 1) {
+      replay.tick = tick;
+      replay.elapsedMs = tick * replay.tickMs;
+      replay.ageAndExpireQuotes();
+      for (let i = 1; i < 4; i += 1) {
+        const action = replay.pickAction(i);
+        const flow = replay.othersFlow(bot);
+        const before = replay.roundLog.length;
+        replay.applyAction(i, action);
+        if (i !== seat) continue;
+        if (action.kind.startsWith('quote')) quoteSides.add(action.kind);
+        const trade = replay.roundLog.at(-1);
+        if (replay.roundLog.length === before || trade.buyerIdx !== seat || trade.aggressorSide !== 'buy') continue;
+        if (id === 'hunter' && tick < 72 && trade.suit === favorite) trades += 1;
+        if (id === 'bluffer' && tick < 72 && trade.suit === decoy) trades += 1;
+        if (id === 'detective' && tick >= 48 && flow[trade.suit] > 0) trades += 1;
+      }
+    }
+    return [id, id === 'banker' ? quoteSides.size : trades];
+  }))`));
+  assert.ok(tells.hunter >= 2);
+  assert.equal(tells.banker, 2);
+  assert.ok(tells.detective >= 1);
+  assert.ok(tells.bluffer >= 2);
+});
