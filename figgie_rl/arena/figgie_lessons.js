@@ -163,7 +163,8 @@ function coachChart(round, seat, lockedTick) {
   }).join("");
   const labels = history.at(-1).odds.map((odds, suit) => ({ odds, suit, row: y(odds) }))
     .sort((a, b) => a.row - b.row);
-  const gap = 16;
+  // Room for end labels in wide fallback fonts (Linux CI uses DejaVu Sans).
+  const gap = 18;
   labels.forEach((label, index) => {
     label.labelRow = Math.max(label.row, index === 0 ? top : labels[index - 1].labelRow + gap);
   });
@@ -180,7 +181,7 @@ function coachChart(round, seat, lockedTick) {
   const markers = round.roundLog.filter((trade) => trade.buyerIdx === seat || trade.sellerIdx === seat)
     .map((trade) => `<circle class="odds-trade" cx="${x(trade.tick)}" cy="${bottom + 4}" r="2.5"/>`).join("");
   return `<p id="coachOddsSummary">${summary}</p>
-    <svg class="coach-chart" viewBox="0 0 400 180" role="img" aria-label="${summary}">
+    <svg class="coach-chart" viewBox="0 0 450 180" role="img" aria-label="${summary}">
       ${grid}
       <path class="odds-axis" d="M${left} ${top}V${bottom}H${right}"/>
       ${series}${lock}${markers}${endLabels}
