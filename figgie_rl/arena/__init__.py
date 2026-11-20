@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-ARENA_ASSETS = ("figgie_play.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js")
+ARENA_ASSETS = ("figgie_play.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js", "og-image.png")

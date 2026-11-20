@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "build>=1.2",
+  "Pillow>=10.1",
   "pytest>=8.0",
   "ruff>=0.6.0",
   "setuptools>=77",
@@ -51,6 +52,7 @@ py-modules = ["figgie_play"]
   "figgie_arena.css",
   "figgie_arena.js",
   "figgie_lessons.js",
+  "og-image.png",
 ]
 
 [tool.pytest.ini_options]
