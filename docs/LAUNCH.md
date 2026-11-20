@@ -19,6 +19,7 @@ feedback on the learning experience and reproducible experiments.
 Demo: https://riversandrew36.github.io/figgie-rl/
 Source: https://github.com/riversandrew36/figgie-rl
 Official Figgie: https://www.figgie.com/
+Jane Street's gameplay video: https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s
 
 ## 45–60 second recording
 
