@@ -1,6 +1,22 @@
 # Project status: market integration, validation, and experiment records
 
-Updated November 6, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
+Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
+
+
+## Playable browser arena — November 20, 2026
+
+Play seats a human against three chosen scripted opponents and keeps their hands
+and the goal suit private until settlement. Watch seats all four bots. The
+default player market uses backed quotes, trades crossings at the resting price,
+and clears the book on every trade. Classic mode supports old scenario links.
+The browser accepts whole-dollar prices from $1 through $60 and includes a
+four-minute round option.
+
+Nine fixed deals and action sequences generated from the official Python market
+check the browser’s books, cash, inventories, trades, and settlement. Across
+seeds 1–50 at 60 seconds, the scripted bots made 617 trades, averaging 12.34 per
+round with a range of 5–27. Hunter participated in 292 trades, Banker in 423,
+Detective in 140, and Bluffer in 379.
 
 ## Market and reward corrections — November 8, 2026
 
