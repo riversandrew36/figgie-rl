@@ -243,3 +243,22 @@ test('official Python rule fixtures replay after every action and at settlement'
     assert.deepEqual(settlement, scenario.expectedSettlement, `${scenario.name} settlement`);
   }
 });
+
+test('Your read uses the detective weighting and ignores hidden deal data', () => {
+  const { run } = load();
+  run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+  const result = plain(run(`(() => {
+    const hand = [3, 3, 2, 2];
+    const trades = [{ buyerIdx: 1, sellerIdx: 0, suit: 1, aggressorSide: "buy" },
+      { buyerIdx: 0, sellerIdx: 2, suit: 2, aggressorSide: "buy" }];
+    const read = () => estimateRead(game.players[0].initialInventory, game.players[0].inventory, trades, 0);
+    game.loadDeal({ inventories: [hand, [2,4,2,2], [1,2,3,4], [2,3,3,2]], goalSuitIdx: 0 });
+    const first = read();
+    game.loadDeal({ inventories: [hand, [1,2,3,4], [2,4,2,2], [2,3,3,2]], goalSuitIdx: 2 });
+    return [first, read()];
+  })()`));
+  assert.deepEqual(result[0], result[1]);
+  const weighted = result[0].map((row, suit) => row.handOdds * Math.exp(suit === 1 ? 0.35 : 0));
+  const total = weighted.reduce((a, b) => a + b);
+  result[0].forEach((row, suit) => assert.equal(row.tapeOdds, weighted[suit] / total));
+});

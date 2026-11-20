@@ -50,6 +50,7 @@ py-modules = ["figgie_play"]
   "figgie_play.html",
   "figgie_arena.css",
   "figgie_arena.js",
+  "figgie_lessons.js",
 ]
 
 [tool.pytest.ini_options]

@@ -111,6 +111,18 @@
       </section>
     </section>
 
+    <section id="yourRead" class="panel teaching" hidden>
+      <h2 class="section-title">Your read</h2>
+      <details id="readToggle" open>
+        <summary>Show or hide estimates</summary>
+        <p>Tape-adjusted odds are a heuristic. Rough values include an estimate of the majority share.</p>
+        <details><summary>Why these hand odds?</summary>
+          <p>The deck has suits of 12, 10, 10 and 8 cards, and the goal is the same-color partner of the 12-card suit, so your starting counts make some distributions more likely than others.</p>
+        </details>
+        <ul id="readRows" class="read-rows"></ul>
+      </details>
+    </section>
+
     <section class="rules panel" id="how-it-works">
       <h2 class="section-title">How Figgie works</h2>
       <p>The deck has 40 cards: one suit has 12, two have 10, and one has 8. The <strong>goal suit</strong> is the other suit of the same color as the 12-card suit. Only goal cards pay at the end. Play hides the goal suit and opponents’ hands until settlement; Watch reveals all hands.</p>
@@ -224,5 +236,6 @@ figgie-eval --model-path artifacts/ppo_learning/best_model/best_model.zip \
   </main>
 
   <script src="figgie_arena.js"></script>
+  <script src="figgie_lessons.js"></script>
 </body>
 </html>

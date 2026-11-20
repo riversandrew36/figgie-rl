@@ -459,3 +459,10 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
   .play-market .suit-head { gap: 0.3rem; }
   .play-market .human-controls { margin: 0; padding: 0; border: 0; box-shadow: none; }
 }
+
+.teaching { padding: 1rem; }
+.teaching button, .teaching select, .teaching summary { min-height: 44px; }
+.read-rows { padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+.read-rows li { border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem; }
+.read-rows span, .read-rows small { display: block; }
+.read-rows small { color: var(--muted); }

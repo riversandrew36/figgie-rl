@@ -22,7 +22,7 @@ def test_arena_directory_serves_packaged_files() -> None:
     assert not (root / "pyproject.toml").exists()
     html = (root / "figgie_play.html").read_text(encoding="utf-8")
     assert "figgie_arena.css" in html
-    assert "figgie_arena.js" in html
+    assert "figgie_arena.js" in html and "figgie_lessons.js" in html
     for name in ARENA_ASSETS:
         path = root / name
         assert path.is_file()
@@ -46,7 +46,7 @@ def test_arena_server_returns_assets() -> None:
             assert body
         html = _fetch(f"http://{host}:{port}/figgie_play.html").decode("utf-8")
         assert "figgie_arena.css" in html
-        assert "figgie_arena.js" in html
+        assert "figgie_arena.js" in html and "figgie_lessons.js" in html
     finally:
         server.shutdown()
         server.server_close()

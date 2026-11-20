@@ -60,6 +60,7 @@ jobs:
               "figgie_rl/arena/figgie_play.html",
               "figgie_rl/arena/figgie_arena.css",
               "figgie_rl/arena/figgie_arena.js",
+              "figgie_rl/arena/figgie_lessons.js",
           ]
           missing = [name for name in required if name not in names]
           if missing:

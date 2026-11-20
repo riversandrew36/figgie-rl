@@ -30,7 +30,7 @@ def arena_directory() -> Path:
 
     Wheel installs and editable installs both expose the HTML, CSS, and JS
     through importlib.resources. When those resources are already real files,
-    the package directory is used directly. Otherwise the three assets are
+    the package directory is used directly. Otherwise the assets are
     copied into a temporary directory that lives until the process exits.
     """
     root = files("figgie_rl.arena")
