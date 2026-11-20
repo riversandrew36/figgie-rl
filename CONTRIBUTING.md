@@ -13,6 +13,7 @@ The packaged files in `figgie_rl/arena/` are the only browser source. The Pages 
 copies them; do not edit generated `_site/` files. The browser is a separate JavaScript
 simulation, not a PPO runtime. Bump `SIMULATION_VERSION` when seeded mechanics change;
 share links reproduce a scenario only within a compatible simulation version.
+Regenerate the official browser rule fixtures with `python -m scripts.export_rule_fixtures`.
 
 Before a pull request:
 

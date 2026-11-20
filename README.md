@@ -6,16 +6,17 @@ train PPO agents, and study learning under hidden information.
 **[Open the live lab](https://riversandrew36.github.io/figgie-rl/)** ·
 [Train your first agent](docs/RL_QUICKSTART.md)
 
-- **Watch and learn:** the browser arena seats four scripted baselines, supports
-  seeded scenarios and pause/step, and explains settlement and initial-hand beliefs.
+- **Play and watch:** trade against three scripted opponents or watch four bots.
+  The arena supports seeded scenarios, keyboard trading, and settlement explanations.
 - **Train and evaluate:** the Python Gymnasium environment supports PPO, engineered
   belief features, paired baseline benchmarks, checkpoint metadata, and self-play.
 - **Reproduce and question:** use separate validation and final-test seeds, export
   results, and read the [experiment records and limitations](docs/PROJECT_STATUS.md).
 
 The browser and Python are separate simulations. The hosted viewer does **not** run
-PPO checkpoints. The browser uses simplified external quotes/fills; Python also
-supports a player-quote market. Seeds and outcomes do not transfer between them.
+PPO checkpoints. Its default market uses official quote matching with player
+liquidity only. Classic mode preserves the older outside book for old scenario links.
+Seeds and whole-round outcomes do not transfer between the implementations.
 No validated claim of stronger PPO play in the newer player-quote market is made.
 
 Start with the [RL quickstart](docs/RL_QUICKSTART.md) for a small train/evaluate
@@ -41,7 +42,7 @@ for masking semantics, checkpoint loading, and the bounded study design.
 cash or a card when posted, a quote that crosses another player's quote executes at
 the resting price, and any trade clears every resting quote. `legacy` keeps the
 earlier rules and is pinned in the configs of the completed November 2026 studies.
-The browser arena still uses its simplified rules.
+The browser arena defaults to these quote rules and accepts whole-dollar prices from $1 to $60.
 
 `EnvConfig.reward_scale` multiplies only the reward returned to the learner.
 Bankrolls, `reward_breakdown`, and evaluation reports stay in chips. Without scaling,
@@ -73,7 +74,7 @@ chip-sized value errors dominate PPO's shared gradient clipping, so
 
 ## Playing styles
 
-Four opponents with distinct personalities live in `figgie_rl/agents/styles.py`. The browser arena seats the same four.
+Four opponents with distinct personalities live in `figgie_rl/agents/styles.py`. Watch seats the same four. In Play, choose any three.
 
 | Label | Style | How it plays |
 |---|---|---|
@@ -89,7 +90,7 @@ Use any three as training opponents with `opponent_difficulties`, for example `[
 - `figgie_rl/envs/`: environment and game mechanics
 - `figgie_rl/agents/`: scripted baseline opponents and the four playing styles
 - `figgie_rl/train/`: training, evaluation, and model-metadata helpers
-- `figgie_rl/arena/`: packaged browser arena seating the four playing styles (`figgie_play.html`, `figgie_arena.css`, `figgie_arena.js`)
+- `figgie_rl/arena/`: packaged Play and Watch arena (`figgie_play.html`, `figgie_arena.css`, `figgie_arena.js`)
 - `figgie_play.py`: local server for those arena assets
 - `configs/`: training configs
 - `tests/`: mechanics, API, packaging, and output-format checks
@@ -217,7 +218,7 @@ At the natural round horizon, marked inventory is replaced by its true settlemen
 - `info["observation_spec"]` and `info["action_meanings"]` are returned on reset for easier debugging and notebook exploration.
 - `info["reward_breakdown"]` is returned on each step so you can inspect why a reward changed.
 - Terminal info includes all final bankrolls, the learning agent's rank, and winner indices.
-- The browser arena supports deterministic seeds, pause/single-step, speed control, quote ownership, and JSON round-log downloads.
+- The browser arena supports deterministic deals, quote ownership, and JSON round logs. Play runs in real time with a practice pause. Watch also supports single-step and speed controls. Rounds can run for 30, 60, 90, or 240 seconds.
 
 ## Roadmap
 
