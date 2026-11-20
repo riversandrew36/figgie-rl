@@ -23,6 +23,7 @@ def test_arena_directory_serves_packaged_files() -> None:
     html = (root / "figgie_play.html").read_text(encoding="utf-8")
     assert "figgie_arena.css" in html
     assert "figgie_arena.js" in html and "figgie_lessons.js" in html
+    assert "figgie_rl_showcase.js" in html
     for name in ARENA_ASSETS:
         path = root / name
         assert path.is_file()

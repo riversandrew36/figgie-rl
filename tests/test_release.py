@@ -17,6 +17,7 @@ def test_pages_contains_only_browser_assets(tmp_path: Path) -> None:
     build(tmp_path)
     assert {p.name for p in tmp_path.iterdir()} == {
         "index.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js", "og-image.png",
+        "rl_results.json", "figgie_rl_showcase.js",
     }
     html = (tmp_path / "index.html").read_text()
     assert 'href="figgie_arena.css"' in html

@@ -524,3 +524,17 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
   .intro .lead { font-size: 1rem; }
 }
 #dailyShareField { width: 100%; max-width: 100%; background: var(--surface); color: var(--text); }
+
+.research-chart { display: block; width: 100%; max-width: 660px; }
+.research-chart text { fill: var(--text); font-size: 11px; }
+.chart-grid, .chart-reference { stroke: var(--muted); opacity: 0.4; }
+.chart-reference { stroke-dasharray: 3 3; }
+.chart-mean { stroke: var(--accent); stroke-width: 2.5; }
+.chart-seed { fill: currentColor; }
+.chart-curve { fill: none; stroke: currentColor; stroke-width: 2; }
+.seed-0 { color: var(--text); }
+.seed-1 { color: var(--positive); }
+.seed-2 { color: var(--negative); }
+.rl-curves { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.rl-curves article { min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem; }
+.rl-curves h4 { margin: 0; }
