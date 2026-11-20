@@ -122,7 +122,7 @@ class FiggieViewerGame {
     this.fundamentalMid = Array(SUITS.length).fill(5.0);
     this.externalBid = Array(SUITS.length).fill(4.0);
     this.externalAsk = Array(SUITS.length).fill(6.0);
-    this.lastTradePrice = Array(SUITS.length).fill(5.0);
+    this.lastTradePrice = Array(SUITS.length).fill(this.marketMode === "players" ? 0.0 : 5.0);
     this.lastTradeSignedVolume = Array(SUITS.length).fill(0.0);
     this.cumulativeSignedFlow = Array(SUITS.length).fill(0.0);
 
@@ -523,6 +523,9 @@ class FiggieViewerGame {
     this.tradeTape = [];
     this.roundLog = [];
     this.tradeId = 0;
+    this.lastTradePrice = Array(SUITS.length).fill(0.0);
+    this.lastTradeSignedVolume = Array(SUITS.length).fill(0.0);
+    this.cumulativeSignedFlow = Array(SUITS.length).fill(0.0);
   }
 
   marketView(playerIdx) {
