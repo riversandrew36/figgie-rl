@@ -50,7 +50,176 @@ const arenaTeaching = (() => {
     if (rows.innerHTML !== markup) rows.innerHTML = markup;
   }
 
-  return { render, load, save };
+  const byId = (id) => document.getElementById(id);
+  const tutorial = byId("tutorial");
+  const prompt = byId("learnPrompt");
+  const steps = [
+    "Find your ten cards on the Market Board. One suit has 12 cards. Its same-color partner scores, but you do not know which suit has 12.",
+    "Open Your read and compare the four hand odds. Those estimates use your starting cards.",
+    "Post an $8 bid for Spades. A bid needs enough cash to pay the full quoted price.",
+    "Hunter offered below your bid. The trade printed at your resting $8 bid, and every other quote cleared.",
+    "Hearts looks less likely from this hand. Offer a Heart at $8 to turn a card into cash. Banker will lift your offer.",
+    "Watch the tape. Hunter just bought Clubs aggressively. Compare the tape-adjusted odds to your hand odds.",
+    "Each goal card pays $10. Players tied for the most goal cards split what remains. See Your settlement for your result.",
+  ];
+  const deal = [[3,3,2,2], [2,4,2,2], [1,2,3,4], [2,3,3,2]];
+  let step = -1;
+  let highlight;
+  const specs = [
+    { name: "You", strategy: -1, isHuman: true },
+    ...BOT_NAMES.slice(0, 3).map((name, strategy) => ({ name, strategy })),
+  ];
+
+  function dismissPrompt() {
+    prompt.hidden = true;
+    save("promptDismissed", true);
+  }
+
+  function showStep() {
+    highlight?.classList.remove("tutorial-target");
+    byId("tutorialInstruction").textContent = `Step ${step + 1} of 7. ${steps[step]}`;
+    byId("tutorialHint").textContent = "";
+    byId("tutorialBack").disabled = step === 0;
+    byId("tutorialNext").hidden = [2, 4, 6].includes(step);
+    byId("tutorialFinish").hidden = step !== 6;
+    renderArena();
+    const targets = ["#marketGrid", "#yourRead", '[data-human-action="quote_bid"][data-suit="0"]',
+      "#marketGrid", '[data-human-action="quote_ask"][data-suit="2"]', "#tapeItems", "#humanPayout"];
+    highlight = document.querySelector?.(targets[step]);
+    highlight?.classList.add("tutorial-target");
+    if (step === 1) toggle.open = true;
+    if (step === 2 || step === 4) {
+      selectedSuitIdx = step === 2 ? 0 : 2;
+      selectedQuoteSide = step === 2 ? "quote_bid" : "quote_ask";
+    }
+    (step === 2 || step === 4 ? highlight : byId("tutorialTitle"))?.focus();
+  }
+
+  function renderArena() { globalThis.render(); }
+
+  function crossingBid() {
+    game.applyAction(2, { kind: "quote_bid", suit: 1, price: 5 });
+    game.applyAction(1, { kind: "quote_ask", suit: 0, price: 7 });
+  }
+
+  function liftOffer() { game.applyAction(2, { kind: "buy", suit: 2 }); }
+
+  function moveTape() {
+    game.applyAction(3, { kind: "quote_ask", suit: 1, price: 6 });
+    game.applyAction(1, { kind: "buy", suit: 1 });
+  }
+
+  function restoreTutorial(target) {
+    game.loadDeal({ inventories: deal, goalSuitIdx: 0, playerSpecs: specs });
+    game.running = true;
+    game.paused = true;
+    game.revealGoal = false;
+    game.lastActionMessage = "";
+    game.humanPriceDrafts.fill(8);
+    clearExplanation();
+    if (target >= 3) {
+      game.applyAction(0, { kind: "quote_bid", suit: 0, price: 8 });
+      crossingBid();
+    }
+    if (target >= 5) {
+      game.applyAction(0, { kind: "quote_ask", suit: 2, price: 8 });
+      liftOffer();
+      moveTape();
+    }
+    step = target;
+    showStep();
+  }
+
+  function startTutorial() {
+    if (step >= 0) return;
+    if (game.running) playBtn.click();
+    dismissPrompt();
+    playModeInput.checked = true;
+    refreshModePreview();
+    game.elapsedMs = 0;
+    tutorial.hidden = false;
+    [playBtn, pauseBtn, downloadBtn, playModeInput, watchModeInput, durationSelect, seedInput]
+      .forEach((input) => { input.disabled = true; });
+    for (const name of BOT_NAMES) byId("opponent" + name).disabled = true;
+    restoreTutorial(0);
+  }
+
+  function stopTutorial() {
+    if (step < 0) return false;
+    step = -1;
+    highlight?.classList.remove("tutorial-target");
+    tutorial.hidden = true;
+    game.stop(false);
+    [playModeInput, watchModeInput, durationSelect, seedInput]
+      .forEach((input) => { input.disabled = false; });
+    for (const name of BOT_NAMES) byId("opponent" + name).disabled = false;
+    refreshModePreview();
+    byId("learnBasics").focus();
+    return true;
+  }
+
+  function beforeAction(kind, suit) {
+    if (step < 0) return true;
+    const expected = step === 2 ? "quote_bid" : step === 4 ? "quote_ask" : null;
+    const price = Number(document.querySelector?.(`.human-price[data-suit="${suit}"]`)?.value);
+    if (kind === expected && suit === (step === 2 ? 0 : 2) && price === 8) return true;
+    byId("tutorialHint").textContent = expected
+      ? `Try the ${step === 2 ? "Spades Bid" : "Hearts Offer"} button with the price set to $8.`
+      : "Use Continue when you are ready for the next step.";
+    return false;
+  }
+
+  function afterAction() {
+    if (step === 2) {
+      crossingBid();
+      step = 3;
+      showStep();
+    } else if (step === 4) {
+      liftOffer();
+      moveTape();
+      step = 5;
+      showStep();
+    }
+  }
+
+  function nextStep() {
+    if (step < 0 || [2, 4, 6].includes(step)) return;
+    step += 1;
+    if (step === 6) {
+      game.stop(true);
+      renderExplanation(game);
+    }
+    showStep();
+  }
+
+  function startRealRound() {
+    stopTutorial();
+    durationSelect.value = "60000";
+    seedInput.value = Math.floor(Math.random() * 2147483647);
+    playBtn.click();
+  }
+
+  prompt.hidden = load("promptDismissed", false) || new URL(window.location.href).search !== "";
+  byId("learnBasics").addEventListener("click", startTutorial);
+  byId("promptLearn").addEventListener("click", startTutorial);
+  byId("dismissPrompt").addEventListener("click", dismissPrompt);
+  byId("tutorialBack").addEventListener("click", () => { if (step > 0) restoreTutorial(step - 1); });
+  byId("tutorialNext").addEventListener("click", nextStep);
+  byId("tutorialSkip").addEventListener("click", stopTutorial);
+  byId("tutorialPlay").addEventListener("click", startRealRound);
+  byId("tutorialLesson").addEventListener("click", stopTutorial);
+  document.addEventListener?.("keydown", (event) => {
+    if (step < 0) return;
+    if (event.key === "Escape" || (event.key === "Enter" && event.target === byId("tutorialTitle"))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Escape") stopTutorial();
+      else nextStep();
+    }
+  }, true);
+
+  return { render, load, save, beforeAction, afterAction, stopTutorial,
+    roundStarted() {}, roundEnded() {} };
 })();
 globalThis.figgieTeaching = arenaTeaching;
 arenaTeaching.render();

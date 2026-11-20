@@ -21,7 +21,7 @@ test('learner can control, understand, export and repeat a round without an acco
   await expect(page.locator('.play-links').getByRole('link', { name: 'Play the official game' })).toBeVisible();
   await expect(page.locator('.attribution').getByRole('link', { name: 'Play the official game' })).toBeVisible();
   await expect(page.locator('.attribution').first()).toContainText('not affiliated with or endorsed by Jane Street');
-  await expect(page.locator('details[open]')).toHaveCount(0);
+  await expect(page.locator('details[open]:not(#readToggle)')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('landing.png'), animations: 'disabled' });
   await expect(page.locator('#seedInput')).toHaveValue('23');
   await expect(page.locator('#status')).toContainText('Ready');
@@ -204,4 +204,58 @@ test('keyboard, blocked storage, invalid URLs and assets work under a repository
   for (const asset of ['figgie_arena.js', 'figgie_arena.css']) {
     expect((await page.request.get(`/figgie-rl/${asset}`)).ok()).toBe(true);
   }
+});
+
+async function tutorialStep(page, step) {
+  await expect(page.locator('#tutorialInstruction')).toContainText(`Step ${step} of 7`);
+}
+
+test('guided round teaches crossing and settlement', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/figgie-rl/');
+  await page.locator('#promptLearn').click();
+  await tutorialStep(page, 1);
+  await page.locator('#tutorialNext').click();
+  await tutorialStep(page, 2);
+  await page.locator('#tutorialNext').click();
+  await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
+  await tutorialStep(page, 4);
+  await expect(page.locator('#goal')).toContainText('Hidden');
+  expect(await page.evaluate(() => [game.roundLog[0].price, game.bestBid(1).buyer])).toEqual([8, null]);
+  await page.locator('#tutorial').screenshot({ path: info.outputPath('tutorial-step-4.png') });
+  await page.locator('#tutorialBack').click();
+  await tutorialStep(page, 3);
+  await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
+  await page.locator('#tutorialNext').click();
+  await page.locator('[data-human-action="quote_ask"][data-suit="2"]').click();
+  await tutorialStep(page, 6);
+  await page.locator('#yourRead').screenshot({ path: info.outputPath('your-read.png') });
+  await page.locator('#tutorialNext').click();
+  await tutorialStep(page, 7);
+  await expect(page.locator('#humanPayout')).toBeVisible();
+  await expect(page.locator('#tutorialFinish a[href="https://www.figgie.com/"]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('tutorial-final.png'), fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('guided round works using only the keyboard with storage blocked', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'localStorage', {
+    get() { throw new DOMException('Storage blocked', 'SecurityError'); },
+  }));
+  await page.goto('/figgie-rl/');
+  for (let tab = 0; tab < 4; tab += 1) await page.keyboard.press('Tab');
+  await expect(page.locator('#learnBasics')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await tutorialStep(page, 1);
+  for (let step = 2; step <= 7; step += 1) {
+    await page.keyboard.press('Enter');
+    await tutorialStep(page, step);
+  }
+  await expect(page.locator('#humanPayout')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#tutorial')).toBeHidden();
+  await expect(page.locator('#learnBasics')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await page.locator('#tutorialSkip').click();
+  await expect(page.locator('#tutorial')).toBeHidden();
 });

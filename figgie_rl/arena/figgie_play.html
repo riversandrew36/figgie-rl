@@ -17,6 +17,7 @@
       <p>Play a round yourself or watch four scripted baselines trade. Inspect settlement, then take the experiment into Python to train and evaluate a PPO agent.</p>
       <p class="small attribution">Independent educational implementation, not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.</p>
       <nav class="entry-links" aria-label="Start exploring">
+        <button id="learnBasics" type="button">Learn the basics (3 min)</button>
         <a class="primary-link" href="#arena">Play or watch a round ↓</a>
         <a href="#how-it-works">How it works</a>
         <a href="#reinforcement-learning">Train an agent</a>
@@ -85,6 +86,26 @@
         <span id="pot">Pot: $200</span>
         <span id="goal">Goal Suit: Hidden</span>
         <span id="winner">Majority bonus: Pending</span>
+      </div>
+    </section>
+
+    <section id="learnPrompt" class="panel teaching" hidden>
+      <p>First round? Walk through a trade and see how the pot is paid.</p>
+      <button id="promptLearn" type="button">Start guided round</button>
+      <button id="dismissPrompt" class="reset-btn" type="button">Dismiss</button>
+    </section>
+    <section id="tutorial" class="panel teaching" hidden aria-labelledby="tutorialTitle">
+      <h2 id="tutorialTitle" tabindex="-1">Guided round</h2>
+      <div aria-live="polite"><p id="tutorialInstruction"></p><p id="tutorialHint"></p></div>
+      <div class="teaching-actions">
+        <button id="tutorialBack" type="button">Back</button>
+        <button id="tutorialNext" type="button">Continue</button>
+        <button id="tutorialSkip" class="reset-btn" type="button">Skip tutorial</button>
+      </div>
+      <div id="tutorialFinish" hidden>
+        <button id="tutorialPlay" type="button">Play a real round</button>
+        <a href="#lessons" id="tutorialLesson">Try a bot lesson</a>
+        <p>Ready for the real thing? <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.</p>
       </div>
     </section>
 

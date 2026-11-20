@@ -1410,6 +1410,7 @@ function humanActionMarkup(suit, suitIdx, playerIdx) {
 function performHumanAction(kind, suitIdx) {
   const playerIdx = humanPlayerIndex();
   if (playerIdx < 0 || !game.running || !Number.isInteger(suitIdx)) return;
+  if (globalThis.figgieTeaching?.beforeAction(kind, suitIdx) === false) return;
   if (kind === "quote_bid" || kind === "quote_ask") {
     selectedQuoteSide = kind;
     game.humanPriceDrafts[suitIdx] = Number(document.querySelector?.(`.human-price[data-suit="${suitIdx}"]`)?.value);
@@ -1421,6 +1422,7 @@ function performHumanAction(kind, suitIdx) {
     if (kind === "buy" || kind === "sell") selectedQuoteSide = kind === "buy" ? "quote_bid" : "quote_ask";
   }
   selectedSuitIdx = suitIdx;
+  globalThis.figgieTeaching?.afterAction();
   if (humanActionHelpEl) humanActionHelpEl.textContent = game.lastActionMessage;
   render();
 }
@@ -1534,6 +1536,7 @@ function onRoundEnded() {
   stepBtn.disabled = true;
   downloadBtn.disabled = false;
   updateStrengthTracker();
+  globalThis.figgieTeaching?.roundEnded();
   renderExplanation(game);
 
   const topBankroll = Math.max(...game.players.map((p) => p.cash));
@@ -1542,6 +1545,7 @@ function onRoundEnded() {
 }
 
 playBtn.addEventListener("click", () => {
+  if (globalThis.figgieTeaching?.stopTutorial()) return;
   if (game.running) {
     game.stop(false);
     playBtn.textContent = "Play";
@@ -1588,6 +1592,7 @@ playBtn.addEventListener("click", () => {
   downloadBtn.disabled = true;
   summaryEl.textContent = `Round in progress... each player starts with $${game.startingCash.toFixed(0)} and posts a $${game.ante.toFixed(0)} ante (cash at open: $${game.cashAfterAnte.toFixed(0)}).`;
   game.start(selectedMs, selectedSeed, selectedSpeed, { marketMode, humanSeated: playMode, playerSpecs });
+  globalThis.figgieTeaching?.roundStarted();
   render();
   if (playMode) marketGridEl.focus();
 });
