@@ -304,3 +304,30 @@ test('every fixed lesson seed demonstrates its bot tell within one minute', () =
   assert.ok(tells.detective >= 1);
   assert.ok(tells.bluffer >= 2);
 });
+
+for (const id of ['hunter', 'banker', 'detective', 'bluffer']) {
+  test(`${id} lesson scores passing and failing scripted rounds`, () => {
+    const { run } = load();
+    run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+    const result = plain(run(`[true, false].map(pass => {
+      const id = ${JSON.stringify(id)};
+      const round = new FiggieViewerGame();
+      round.reset(60000, 7);
+      round.loadDeal({ inventories: [[3,3,2,2],[2,4,2,2],[1,2,3,4],[2,3,3,2]], goalSuitIdx: 0,
+        playerSpecs: [{name:"You",isHuman:true}, ...BOT_NAMES.map(name => ({name})).filter(name => name !== "Detective")] });
+      const suit = id === "banker" || id === "hunter" && pass ? 2 : id === "bluffer" && pass ? 2 : 0;
+      if (id !== "banker" || pass) {
+        const buyer = id === "bluffer" ? 3 : 1;
+        round.applyAction(buyer, {kind:"quote_bid",suit,price:id === "banker" ? 50 : 5});
+        round.applyAction(0, {kind:"sell",suit});
+      } else {
+        // Trade away the majority and finish below the starting bankroll.
+        round.applyAction(1, {kind:"quote_bid",suit:0,price:1});
+        round.applyAction(0, {kind:"sell",suit:0});
+      }
+      round.stop(true);
+      return lessonPassed(id, round, 0, 0, pass ? 119 : 120);
+    })`));
+    assert.deepEqual(result, [true, false]);
+  });
+}
