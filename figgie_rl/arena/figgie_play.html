@@ -184,10 +184,11 @@
     <section id="roundCoach" class="panel teaching" hidden aria-labelledby="coachTitle">
       <h2 id="coachTitle">Review your round</h2>
       <p>This review uses hindsight. Each trade is undone on its own. Settlement value isolates the payout change, and edge includes the price you paid or received.</p>
-      <div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable hindsight trades">
+      <div class="table-scroll coach-trade-table" tabindex="0" role="region" aria-label="Scrollable hindsight trades">
         <table><thead><tr><th>Time</th><th>Side</th><th>Suit</th><th>Price</th><th>Counterparty</th><th>Value at settlement</th><th>Edge</th></tr></thead>
         <tbody id="coachTrades"></tbody></table>
       </div>
+      <ul id="coachTradeCards" aria-label="Hindsight trades"></ul>
       <p id="coachTotals"></p>
       <p id="coachInteraction" class="small" hidden>Your goal-suit trades changed the majority payout together by a different amount than their individual edges suggest.</p>
       <p id="coachPayouts"></p>
