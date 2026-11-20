@@ -108,10 +108,18 @@ function coachTime(round, tick) {
 }
 
 function tradeReconciliation(round, seat, trades = tradeHindsight(round, seat)) {
-  const payout = payoutBreakdown(round, round.players[seat]);
+  const counts = round.players.map((player) => player.inventory[round.goalSuitIdx]);
+  for (const trade of round.roundLog) {
+    if (trade.suit !== round.goalSuitIdx || (trade.buyerIdx !== seat && trade.sellerIdx !== seat)) continue;
+    counts[trade.buyerIdx] -= 1;
+    counts[trade.sellerIdx] += 1;
+  }
+  const baselineBankroll = round.startingCash - round.ante + goalPayout(round, counts, seat);
+  const baseline = baselineBankroll - round.startingCash;
   const edge = trades.reduce((sum, trade) => sum + trade.edge, 0);
-  const adjustment = payout.netTradingCashflow - edge;
-  return { edge, adjustment, profit: edge + adjustment + payout.goalCardPayout + payout.majorityPayout - payout.ante };
+  const actual = round.players[seat].cash;
+  const interaction = actual - baselineBankroll - edge;
+  return { baselineBankroll, baseline, edge, interaction, profit: actual - round.startingCash };
 }
 
 function oddsHistory(round, seat) {
@@ -558,7 +566,9 @@ const arenaTeaching = (() => {
       <td>${game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name}</td>
       <td>${coachMoney(trade.value)}</td><td class="${trade.edge > 0 ? "pos" : trade.edge < 0 ? "neg" : ""}">${coachMoney(trade.edge)}</td></tr>`).join("")
       : '<tr><td colspan="7">You made no trades.</td></tr>';
-    byId("coachTotals").textContent = `Net profit ${coachMoney(totals.profit)} = trade edge ${coachMoney(totals.edge)}, payout adjustment ${coachMoney(totals.adjustment)}, goal cards ${coachMoney(payout.goalCardPayout)}, majority ${coachMoney(payout.majorityPayout)}, and ante ${coachMoney(-payout.ante)}.`;
+    byId("coachTotals").textContent = `Net profit ${coachMoney(totals.profit)} = no-trade baseline ${coachMoney(totals.baseline)} + trade edges (${coachMoney(totals.edge)}) + Combined majority effect (${coachMoney(totals.interaction)}).`;
+    byId("coachInteraction").hidden = Math.abs(totals.interaction) < 1e-8;
+    byId("coachPayouts").textContent = `Actual payouts: goal cards ${coachMoney(payout.goalCardPayout)} · majority ${coachMoney(payout.majorityPayout)}.`;
     byId("coachOdds").innerHTML = coachChart(game, seat, lockedTick);
     byId("coachMissed").innerHTML = missed.length ? missed.map((quote) => `<li>${coachTime(game, quote.tick)} · ${quote.buy ? "Buy" : "Sell"} ${SUITS[quote.suit].name} at $${quote.price} with ${game.players[quote.owner].name} · ${coachMoney(quote.edge)} in hindsight</li>`).join("") : "<li>No positive missed edges in the recorded quotes.</li>";
     byId("coachTakeaways").innerHTML = coachTakeaways(game, trades, missed).map((note) => `<li>${note}</li>`).join("");

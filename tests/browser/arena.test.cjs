@@ -349,11 +349,10 @@ test('hindsight undoes goal and non-goal sales, majority flips and ties', () => 
     round.applyAction(0, {kind:"sell", suit});
     round.stop(true);
     const [trade] = tradeHindsight(round, 0);
-    const totals = tradeReconciliation(round, 0);
-    return [trade.value, trade.edge, totals.profit, round.players[0].cash - 350];
+    return [trade.value, trade.edge];
   })`));
   assert.deepEqual(values.map(row => row.slice(0, 2)), [[10, 10], [0, 20], [130, -110], [70, -50]]);
-  for (const row of values) assert.equal(row[2], row[3]);
+
 });
 
 test('coach recording leaves seeded trades unchanged', () => {
@@ -396,3 +395,35 @@ test('missed edges exclude same-tick actions and unaffordable offers', () => {
   })()`));
   assert.deepEqual(quotes.map(quote => [quote.tick, quote.edge]), [[6, 12]]);
 });
+
+const reconciliationCases = [
+  { name: 'no trades', counts: [2,3,2,1], actions: [], expected: [320, -30, 0, 0, -30, 0] },
+  { name: 'non-goal sale', counts: [2,3,2,1], actions: [['sell', 1]], expected: [320, -30, 8, 0, -22, 0] },
+  { name: 'one buy wins majority', counts: [2,3,2,1], actions: [['buy', 0]], expected: [320, -30, 122, 0, 92, 120] },
+  // Both buys are needed. Each single undo loses the same $120 majority payout.
+  { name: 'two buys win majority', counts: [1,4,2,1], actions: [['buy', 0], ['buy', 0]], expected: [310, -40, 244, -120, 84, 120] },
+  // Eight goal cards leave $120. The two leaders get $60 each.
+  { name: 'one buy creates a tie', counts: [2,4,1,1], actions: [['buy', 0]], expected: [320, -30, 62, 0, 32, 60] },
+];
+for (const { name, counts, actions, expected } of reconciliationCases) {
+  test(`profit decomposition: ${name}`, () => {
+    const { run } = load();
+    run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
+    const actual = plain(run(`(() => {
+      game.goalSuitIdx = 0;
+      game.players.forEach((p, i) => { p.inventory = [${JSON.stringify(counts)}[i], 2, 2, 2]; });
+      for (const [side, suit] of ${JSON.stringify(actions)}) {
+        game.applyAction(1, { kind: side === "buy" ? "quote_ask" : "quote_bid", suit, price: 8 });
+        game.applyAction(0, { kind: side, suit });
+      }
+      game.settleRound();
+      const { baselineBankroll, baseline, edge, interaction, profit } = tradeReconciliation(game, 0);
+      const payout = payoutBreakdown(game, game.players[0]);
+      return { terms: [baselineBankroll, baseline, edge, interaction, profit, payout.majorityPayout],
+        sum: baseline + edge + interaction, actual: payout.netProfit };
+    })()`));
+    assert.deepEqual(actual.terms, expected);
+    assert.equal(actual.sum, actual.actual);
+    assert.equal(actual.actual, expected[4]);
+  });
+}
