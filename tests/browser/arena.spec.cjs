@@ -325,7 +325,13 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
   await expect(page.locator('#roundCoach')).toBeHidden();
   await completeRound(page);
   await expect(page.locator('#roundCoach')).toBeVisible();
-  await expect(page.locator('#coachTrades')).toContainText('Banker');
+  const small = info.project.name === 'mobile';
+  await expect(page.locator(small ? '#coachTradeCards' : '#coachTrades')).toContainText('Banker');
+  if (small) {
+    await expect(page.locator('.coach-trade-table')).toBeHidden();
+    await expect(page.locator('#coachTradeCards li').first()).toBeVisible();
+    await expect(page.locator('#coachTradeCards li').first()).toContainText('Edge');
+  }
   await expect(page.getByRole('img', {name: /Your read/})).toBeVisible();
   await expect(page.locator('#coachOdds')).toContainText('prediction locked');
   await expect(page.locator('#coachTakeaways li').first()).toBeVisible();

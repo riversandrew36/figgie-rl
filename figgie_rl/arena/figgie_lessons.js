@@ -589,14 +589,27 @@ const arenaTeaching = (() => {
     const missed = missedEdges(game, seat);
     const totals = tradeReconciliation(game, seat, trades);
     const payout = payoutBreakdown(game, game.players[seat]);
-    byId("coachTrades").innerHTML = trades.length ? trades.map((trade) => `<tr>
-      <td>${coachTime(game, trade.tick)}</td><td>${trade.buy ? "Buy" : "Sell"}</td>
-      <td>${SUITS[trade.suit].name}</td><td>$${trade.price.toFixed(2)}</td>
-      <td>${game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name}</td>
-      <td>${coachMoney(trade.value)}</td><td class="${trade.edge > 0 ? "pos" : trade.edge < 0 ? "neg" : ""}">${coachMoney(trade.edge)}</td></tr>`).join("")
+    const rows = trades.map((trade) => [
+      coachTime(game, trade.tick), trade.buy ? "Buy" : "Sell", SUITS[trade.suit].name,
+      "$" + trade.price.toFixed(2), game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name,
+      coachMoney(trade.value), coachMoney(trade.edge),
+    ]);
+    const tone = (index) => trades[index].edge > 0 ? "pos" : trades[index].edge < 0 ? "neg" : "";
+    byId("coachTrades").innerHTML = rows.length ? rows.map((row, index) => `<tr>${row.map((value, column) =>
+      `<td class="${column === 6 ? tone(index) : ""}">${value}</td>`).join("")}</tr>`).join("")
       : '<tr><td colspan="7">You made no trades.</td></tr>';
+    const labels = ["Time", "Side", "Suit", "Price", "Counterparty", "Value at settlement", "Edge"];
+    byId("coachTradeCards").innerHTML = rows.length ? rows.map((row, index) => `<li><dl>${row.map((value, column) =>
+      `<div><dt>${labels[column]}</dt><dd class="${column === 6 ? tone(index) : ""}">${value}</dd></div>`).join("")}</dl></li>`).join("")
+      : "<li>You made no trades.</li>";
     byId("coachTotals").textContent = `Net profit ${coachMoney(totals.profit)} = no-trade baseline ${coachMoney(totals.baseline)} + trade edges (${coachMoney(totals.edge)}) + Combined majority effect (${coachMoney(totals.interaction)}).`;
     byId("coachInteraction").hidden = Math.abs(totals.interaction) < 1e-8;
+    const goalTrades = trades.filter((trade) => trade.suit === game.goalSuitIdx);
+    const marginalMajority = goalTrades.reduce((sum, trade) =>
+      sum + (trade.buy ? 1 : -1) * (trade.value - game.goalCardValue), 0);
+    const combinedMajority = marginalMajority + totals.interaction;
+    const tied = game.winnerIdxs.includes(seat) && game.winnerIdxs.length > 1;
+    byId("coachInteraction").textContent = `Your ${goalTrades.length} ${SUITS[game.goalSuitIdx].name} trades counted ${coachMoney(marginalMajority)} in majority changes individually, versus ${coachMoney(combinedMajority)} together, so the correction is ${coachMoney(totals.interaction)}.${tied ? ` You tied for the lead and received $${payout.majorityPayout.toFixed(2)} of the majority pot.` : ""}`;
     byId("coachPayouts").textContent = `Actual payouts: goal cards ${coachMoney(payout.goalCardPayout)} · majority ${coachMoney(payout.majorityPayout)}.`;
     byId("coachOdds").innerHTML = coachChart(game, seat, lockedTick);
     byId("coachMissed").innerHTML = missed.length ? missed.map((quote) => `<li>${coachTime(game, quote.tick)} · ${quote.buy ? "Buy" : "Sell"} ${SUITS[quote.suit].name} at $${quote.price} with ${game.players[quote.owner].name} · ${coachMoney(quote.edge)} in hindsight</li>`).join("") : "<li>No positive missed edges in the recorded quotes.</li>";

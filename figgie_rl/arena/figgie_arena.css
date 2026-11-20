@@ -494,3 +494,14 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .odds-leader { fill: none; stroke: currentColor; }
 .coach-chart .odds-end-label { fill: currentColor; font-size: 13px; }
 .odds-goal-label { font-weight: 700; }
+
+#coachTradeCards { display: none; }
+@media (max-width: 599px) {
+  .coach-trade-table { display: none; }
+  #coachTradeCards { display: grid; gap: 0.5rem; padding: 0; list-style: none; }
+  #coachTradeCards li { border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem; }
+  #coachTradeCards dl { margin: 0; }
+  #coachTradeCards dl > div { display: flex; justify-content: space-between; gap: 0.5rem; }
+  #coachTradeCards dt { color: var(--muted); }
+  #coachTradeCards dd { margin: 0; text-align: right; }
+}
