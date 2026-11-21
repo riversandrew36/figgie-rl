@@ -63,7 +63,7 @@ test('learner can control, understand, export and repeat a round without an acco
   await expect(page.locator('#round-explanation')).toBeHidden();
   await completeRound(page);
   expect(errors).toEqual([]);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
 test('share links use clipboard when available and provide selectable fallback', async ({ page }) => {
@@ -147,7 +147,7 @@ test('Play mode supports backed quotes, crossing trades, buy and sell, private h
   await expect(page.locator('#botRows')).toContainText('9 cards');
   await expect(page.locator('.your-card-count').first()).toContainText('Your cards:');
   if (test.info().project.name === 'mobile') {
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     const undersized = await page.locator('.human-action-grid button').evaluateAll((buttons) =>
       buttons.filter((button) => button.getBoundingClientRect().height < 44).map((button) => button.textContent));
     expect(undersized).toEqual([]);
@@ -240,7 +240,7 @@ test('guided round teaches crossing and settlement', async ({ page }, info) => {
   await expect(page.locator('#humanPayout')).toBeVisible();
   await expect(page.locator('#tutorialFinish a[href="https://www.figgie.com/"]')).toBeVisible();
   await page.screenshot({ path: info.outputPath('tutorial-final.png'), fullPage: true });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
 test('guided round works using only the keyboard with storage blocked', async ({ page }) => {
@@ -349,7 +349,7 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
       (index === 0 || box.top >= boxes[index - 1].bottom));
   });
   expect(labelsFit).toBe(true);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.locator('#roundCoach').screenshot({path: info.outputPath('coach.png')});
   await page.locator('#coachShare').click();
   const url = new URL(await page.locator('#shareUrl').inputValue());
@@ -460,7 +460,7 @@ test('research charts are accessible and the arena makes only same-origin reques
   expect(payload.ok()).toBe(true);
   expect(await payload.json()).toEqual(await page.locator('#rlShowcaseData').textContent().then(JSON.parse));
   await research.screenshot({ path: info.outputPath('rl-showcase.png'), animations: 'disabled' });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.locator('#playNow').click();
   await completeRound(page);
   const origin = new URL(page.url()).origin;
@@ -509,7 +509,7 @@ test('PPO seats load on selection, play Lab, and survive a shared link', async (
   await expect(page.locator('#goal')).toHaveText(/Hidden/);
   await expect(page.locator('#botRows')).toContainText('PPO · sees the goal');
   await expect(page.locator('#round-explanation')).toBeHidden();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(requests.filter((request) => new URL(request).origin !== url.origin)).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -570,7 +570,7 @@ test('table view seats you with three bots, trades from the action bar and settl
   expect(await page.evaluate(() => game.players[humanPlayerIndex()].bidQuotes[1])).toBe(1);
   await expect(page.locator('#seatBottom .seat-quotes')).toContainText('Bid');
   await expect(page.locator('#tableBook [data-table-suit="1"]')).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('table-play.png'), animations: 'disabled' });
 
   await completeRound(page);
@@ -582,7 +582,7 @@ test('table view seats you with three bots, trades from the action bar and settl
   await expect(page.locator('.seat .seat-result')).toHaveCount(4);
   await expect(page.locator('#tableBook .book-tile.goal')).toHaveCount(1);
   await expect(page.locator('#tableCenter').getByRole('button', { name: 'Play again' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('table-settled.png'), animations: 'disabled' });
 
   const origin = new URL(page.url()).origin;
@@ -620,7 +620,7 @@ test('table view seats a trained bot in Lab and queues your action for your turn
   await page.locator('[data-table-step="1"]').click();
   await page.locator('[data-table-action="quote_bid"]').click();
   await expect(page.locator('#tableActionHelp')).toContainText('Queued for your turn');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await completeRound(page);
   await expect(page.locator('.seat .seat-result')).toHaveCount(4);
   expect(errors).toEqual([]);
