@@ -645,20 +645,20 @@ test('table view seats a trained bot in Lab and queues your action for your turn
   expect(errors).toEqual([]);
 });
 
-test('tier selection controls the table, settles all three tiers, and survives reload', async ({page}, info) => {
+test('tier selection controls the table, settles the open tiers, and survives reload', async ({page}, info) => {
   if (info.project.name === 'mobile') await page.setViewportSize({width:375,height:812});
   await page.goto('/figgie-rl/');
   await expect(page.locator('#tierBeginner')).toBeChecked();
   await expect(page.locator('#tableCenter')).toContainText('Beginner table');
   await page.locator('#tierPicker').screenshot({path: info.outputPath('tier-picker.png')});
   await page.locator('#pokerTable').screenshot({path: info.outputPath('beginner-table.png')});
-  for (const tier of ['Beginner','Intermediate','Advanced']) {
+  // Advanced stays closed until an Expert beats Intermediate on held-out deals.
+  await expect(page.locator('#tierAdvanced')).toBeDisabled();
+  await expect(page.locator('#tierAdvancedLabel')).toContainText('coming soon');
+  await expect(page.locator('#battlePreset option[value^="advanced"]')).toHaveCount(0);
+  for (const tier of ['Beginner','Intermediate']) {
     await page.locator('#tier'+tier).check();
     await expect(page.locator('#tableCenter')).toContainText(tier);
-    if (tier === 'Advanced') {
-      await expect(page.locator('.seat .seat-name').filter({hasText:'Expert'})).toHaveCount(3);
-      await expect(page.locator('.seat .tier-badge').filter({hasText:'Advanced'})).toHaveCount(3);
-    }
     await page.locator('#tableCenter').getByRole('button', {name:'Deal me in'}).click();
     await page.locator('#pauseBtn').click();
     await page.locator('#tableHand [data-table-suit="0"]').click();
@@ -666,14 +666,15 @@ test('tier selection controls the table, settles all three tiers, and survives r
     await completeRound(page);
     await expect(page.locator('#pokerTable .seat-result')).toHaveCount(4);
   }
-  await expect(page.locator('#tierProgress')).toContainText('Advanced');
+  await expect(page.locator('#tierProgress')).toContainText('Intermediate');
   await page.locator('#shareBtn').click();
   const link = await page.locator('#shareUrl').inputValue();
-  expect(new URL(link).searchParams.get('tier')).toBe('advanced');
+  expect(new URL(link).searchParams.get('tier')).toBe('intermediate');
   await page.reload();
-  await expect(page.locator('#tierAdvanced')).toBeChecked();
+  await expect(page.locator('#tierIntermediate')).toBeChecked();
+  await expect(page.locator('#tierAdvanced')).toBeDisabled();
   await page.goto(link);
-  await expect(page.locator('#tableCenter')).toContainText('Advanced');
+  await expect(page.locator('#tableCenter')).toContainText('Intermediate');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
@@ -683,7 +684,7 @@ test('tier battles settle below the table and run twenty in chunks with storage 
   await page.goto('/figgie-rl/');
   await expect(page.locator('#tierBeginner')).toBeChecked();
   await page.locator('#watchModeInput').check();
-  await page.locator('#battlePreset').selectOption('advanced-v-intermediate');
+  await page.locator('#battlePreset').selectOption('intermediate-v-beginner');
   await page.locator('#tableCenter').getByRole('button', {name:'Start the round'}).click();
   await completeRound(page);
   await expect(page.locator('#battleResults')).toBeVisible();

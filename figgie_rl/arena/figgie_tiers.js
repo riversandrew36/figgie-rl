@@ -3,9 +3,12 @@
   const data = JSON.parse(byId("tierRatingsData").textContent);
   if (!data.lineups || typeof refreshModePreview !== "function" || typeof game === "undefined") return;
   const { lineups } = data;
+  // Advanced opens only when its bots beat Intermediate on held-out deals.
+  // Until then the tier is shown as coming soon and never seats a player.
+  const advancedReady = Boolean(data.heldOut.advancedPass);
   const titles = {
     beginner: "Beginner", intermediate: "Intermediate",
-    advanced: data.heldOut.advancedPass ? "Advanced" : "Advanced (preview)", custom: "Custom",
+    advanced: advancedReady ? "Advanced" : "Advanced · coming soon", custom: "Custom",
   };
   const descriptions = {
     beginner: "Slower scripted bots with noisy prices and no tape reading.",
@@ -13,16 +16,24 @@
     advanced: "Expert candidates combine hand odds, aggressive flow, and inventory.",
     custom: "Choose your opponents, including the optional Lab policies.",
   };
-  const ids = ["beginner", "intermediate", "advanced", "custom"];
+  const ids = advancedReady ? ["beginner", "intermediate", "advanced", "custom"] : ["beginner", "intermediate", "custom"];
   const radio = (id) => byId("tier" + id[0].toUpperCase() + id.slice(1));
   const params = new URL(window.location.href).searchParams;
   const preset = byId("battlePreset");
   const matches = {
+    intermediate: () => lineups.intermediate,
     advanced: () => lineups.advanced,
     "advanced-v-intermediate": () => [lineups.advanced[0], lineups.intermediate[0], lineups.advanced[2], lineups.intermediate[1]],
     "intermediate-v-beginner": () => [lineups.intermediate[0], lineups.beginner[0], lineups.intermediate[1], lineups.beginner[1]],
     everyone: () => [lineups.beginner[0], lineups.intermediate[0], lineups.advanced[0], lineups.intermediate[3]],
   };
+  if (!advancedReady) {
+    for (const key of ["advanced", "advanced-v-intermediate", "everyone"]) delete matches[key];
+  }
+  for (const option of [...(preset.options || [])]) {
+    if (option.value !== "custom" && !matches[option.value]) option.remove();
+  }
+  const dailyBattle = advancedReady ? "advanced-v-intermediate" : "intermediate-v-beginner";
   function load(key, fallback) {
     try { return JSON.parse(localStorage.getItem("figgie.tiers." + key)) ?? fallback; }
     catch { return fallback; }
@@ -32,7 +43,9 @@
     catch { /* Play remains available without storage. */ }
   }
   const stored = load("selection", "beginner");
-  const incoming = params.get("tier");
+  const requested = params.get("tier");
+  // A link made while Advanced was open falls back to the closest open tier.
+  const incoming = requested === "advanced" && !advancedReady ? "intermediate" : requested;
   let tier = ids.includes(incoming) ? incoming
     : params.size ? "custom" : ids.includes(stored) ? stored : "beginner";
   const past = load("progress", {});
@@ -58,6 +71,10 @@
     for (const id of ids) {
       radio(id).checked = id === tier;
       radio(id).disabled = game.running;
+    }
+    if (!advancedReady) {
+      radio("advanced").checked = false;
+      radio("advanced").disabled = true;
     }
     preset.disabled = game.running;
     byId("battleDaily").disabled = game.running;
@@ -162,7 +179,7 @@
   byId("battleBatch").addEventListener("click", startBatch);
   byId("battleDaily").addEventListener("click", () => {
     if (isPlayMode() || game.running || typeof dailySeed !== "function" || typeof utcDay !== "function") return;
-    preset.value = "advanced-v-intermediate";
+    preset.value = dailyBattle;
     seedInput.value = dailySeed(utcDay());
     durationSelect.value = "60000";
     refreshModePreview();
@@ -172,7 +189,9 @@
   byId("tierResearch").innerHTML = "<h3>How bot tiers are rated</h3><p>All three tiers use scripted bots. " +
     "The rating run compares candidates on the same seeds against the same reference table. " +
     "Held-out deals decide promotion, using paired 95% intervals. PPO seats remain available in Custom Lab rounds.</p>" +
-    (data.heldOut.advancedPass ? "" : "<p>Advanced is a preview. Its Expert candidates did not all clear the held-out promotion rule.</p>");
+    (advancedReady ? "" : "<p>Advanced is not open yet. On held-out deals every Expert candidate scored below the best " +
+      "Intermediate bot, so an Advanced table would play easier than Intermediate. It opens when a bot beats " +
+      "Intermediate on held-out deals.</p>");
   globalThis.figgieTiers = {
     badge, specs, useCustom, showSettings, started, ended,
     forcesPlayers: (play) => play ? tier !== "custom" : Boolean(matches[preset.value]),
