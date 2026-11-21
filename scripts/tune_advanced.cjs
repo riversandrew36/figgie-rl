@@ -28,7 +28,32 @@ function grid() {
   }
   return candidates;
 }
+function extraChecks() {
+  const seeds = validation;
+  const hold = {name:'Hold',isHuman:true};
+  const pair = (first, second) => interval(first.map((value,i) => value-second[i]));
+  const rivals = [...lineups.intermediate, ...lineups.advanced, hold];
+  const beginner = simulate(rivals, lineups.beginner, seeds);
+  const best = lineups.intermediate.reduce((a,_,i) =>
+    means(beginner[i]) > means(beginner[a]) ? i : a, 0);
+  return {seeds, beginnerReference:lineups.intermediate[best].name,
+    rows:lineups.advanced.map((subject,i) => {
+      const opponents = lineups.advanced.filter(bot=>bot !== subject);
+      const [allAdvanced, reference] = simulate([subject,hold], opponents, seeds);
+      return {name:subject.name, allAdvanced:interval(allAdvanced),
+        allAdvancedHold:interval(reference), allAdvancedVsHold:pair(allAdvanced,reference),
+        beginnerProfit:interval(beginner[4+i]),
+        beginnerVsHold:pair(beginner[4+i],beginner.at(-1)),
+        beginnerVsBest:pair(beginner[4+i],beginner[best])};
+    }),
+  };
+}
+
 function main() {
+  if (process.argv.includes("--extra")) {
+    console.log(JSON.stringify(extraChecks(), null, 2));
+    return;
+  }
   const development = score(grid(), dev);
   const held = score(development.candidates.slice(0,5).map(({vsBest, ...subject}) => subject), validation);
   const names = ['Analyst Edge', 'Analyst Patience', 'Analyst Flow', 'Analyst Anchor'];
