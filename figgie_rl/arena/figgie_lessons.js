@@ -363,16 +363,16 @@ const arenaTeaching = (() => {
     byId("tutorialBack").disabled = step === 0;
     byId("tutorialNext").hidden = [2, 4, 6].includes(step);
     byId("tutorialFinish").hidden = step !== 6;
-    globalThis.render();
-    const targets = ["#marketGrid", "#yourRead", '[data-human-action="quote_bid"][data-suit="0"]',
-      "#marketGrid", '[data-human-action="quote_ask"][data-suit="2"]', "#tapeItems", "#humanPayout"];
-    highlight = document.querySelector?.(targets[step]);
-    highlight?.classList.add("tutorial-target");
-    if (step === 1) toggle.open = true;
     if (step === 2 || step === 4) {
       selectedSuitIdx = step === 2 ? 0 : 2;
       selectedQuoteSide = step === 2 ? "quote_bid" : "quote_ask";
     }
+    globalThis.render();
+    const targets = ["#tableBook", "#yourRead", '[data-table-action="quote_bid"]',
+      "#tableBook", '[data-table-action="quote_ask"]', "#tableFeed", "#humanPayout"];
+    highlight = document.querySelector?.(targets[step]);
+    highlight?.classList.add("tutorial-target");
+    if (step === 1) toggle.open = true;
     (check ? byId("tutorialCheck") : step === 2 || step === 4 ? highlight : byId("tutorialTitle"))?.focus();
   }
 
@@ -490,7 +490,7 @@ const arenaTeaching = (() => {
     BOT_NAMES.forEach((name, index) => { byId("opponent" + name).checked = index < 3; });
     refreshModePreview();
     playBtn.click();
-    marketGridEl.scrollIntoView?.({ block: "start" });
+    byId("pokerTable")?.scrollIntoView?.({ block: "start" });
   }
 
   byId("playNow").addEventListener("click", () => startFrontRound(Math.floor(Math.random() * 2 ** 32)));
