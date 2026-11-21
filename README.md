@@ -3,14 +3,14 @@
 Play a one-minute card market, learn how to read the tape, and see what happened
 when PPO trained with and without hints about the hidden goal.
 
-- **Play:** trade against three scripted opponents or watch four bots.
+- **Play:** trade against three opponents or watch four bots. Choose a PPO seat to enter Lab.
 - **Learn:** take the guided round, practice a bot lesson, or use Your read while you play.
 - **Daily deal:** play the shared UTC deal and copy a spoiler-free result.
 - **What the AI learned:** see the training curves, per-seed results, and scripted baselines
   from the Python study. [Open the arena](https://riversandrew36.github.io/figgie-rl/)
 
 The Python Gymnasium lab supports PPO, belief features, paired benchmarks, and
-self-play. The browser runs a separate scripted simulation with player quotes.
+self-play. The browser runs a separate simulation with player quotes and optional PPO actors.
 Classic mode opens older scenarios that used an outside book. The study charts
 report Python development-seed results.
 
@@ -74,6 +74,19 @@ shared by all players that UTC day. Your first attempt is scored locally and
 later attempts are practice. The dated result link stays playable after the
 day ends. Result sharing includes profit, prediction timing, and trade edges
 without exposing your hand or the goal suit.
+
+## Play against a trained bot
+
+Replace an opponent with **PPO · no aids** or **PPO · sees the goal**. The
+second policy receives the scoring suit on purpose. It illustrates the value
+of knowing the goal. Selecting either policy opens the Lab market, which runs
+120 decisions per round. At 60 seconds, each seat moves every half second and
+quotes expire after four seconds. The human's queued action runs on their
+seat's turn. Daily deals, lessons, Players and Classic keep their schedules.
+
+Run `npm run eval:browser-policy -- --check` to reproduce the browser benchmark
+shown in **What the AI learned**. See the [parity report](docs/BROWSER_POLICY_PARITY.md)
+for the Python comparison.
 
 ## Learn while playing
 

@@ -9,10 +9,10 @@ Jane Street's Figgie. Start with the daily deal. Everyone gets the same
 starting deal for a one-minute round, and you can share your result without
 revealing the goal. The guided round teaches bidding, offering, and settlement.
 
-Open **What the AI learned** to see how profits changed when the goal was
-hidden during training. The charts show development results from the Python
-lab. You can reproduce the workflow, compare policies with scripted baselines,
-and experiment with self-play.
+Try either of the two PPO seats in the Lab market. One receives the goal on
+purpose, and the other trades without hints. **What the AI learned** shows
+the Python training curves and a separate browser benchmark. The Python
+quickstart shows how to train and compare your own policies.
 
 Demo: https://riversandrew36.github.io/figgie-rl/
 Source: https://github.com/riversandrew36/figgie-rl
@@ -24,8 +24,8 @@ Jane Street's gameplay video: https://www.youtube.com/watch?v=q2jjJudrEnc&t=13s
 - 0–8s: show Play now, Learn the basics, and the daily deal.
 - 8–20s: start the daily deal, lock a goal prediction, and place a quote.
 - 20–35s: cut to settlement and show the result card, streak, and coach.
-- 35–48s: show the final-profit chart and training curves. Label the results
-  as Python development runs, then point to the quickstart.
+- 35–48s: pick a PPO seat to show the Lab schedule, then contrast the Python
+  training curves with the browser benchmark.
 - 48–60s: copy the spoiler-free daily result and point to the quickstart.
 
 Ask five to ten early testers to try the demo without instructions, explain a
