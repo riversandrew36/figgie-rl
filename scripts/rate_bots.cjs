@@ -4,8 +4,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { arena, loadBrowser } = require('./browser_harness.cjs');
 
-const revision = '27f79928e064124965050421f1ee54bcb75fcf31';
-const advancedHeldOut = [912000, 912399];
+const revision = '485c75bdfe19a9252e22a89e466e4b92e79444f0';
+const advancedHeldOut = [930000, 931999];
 const names = ['Hunter', 'Banker', 'Detective', 'Bluffer'];
 const beginner = names.map((name, strategy) => ({
   name: `Rookie ${name}`, strategy, tier: 'beginner',
@@ -32,7 +32,17 @@ const analysts = [
   profile: {edgeThreshold, quoteWidth, actionCap:60, quoteEvery:5, widening:0.5, endgame:0.85, dumpOdds:0.03},
 }));
 // Preserve the Beginner eligibility decision from its original study.
-const advanced = analysts;
+// Frozen by the fresh validation rank before opening 930000–931999.
+const advanced = [
+  ["Strategist Hold", 2, 7, 0.5],
+  ["Strategist Press", 4, 7, 1],
+  ["Strategist Read", 2, 4, 0.5],
+  ["Strategist Close", 2, 7, 1],
+].map(([name, edgeThreshold, quoteWidth, liveWeight]) => ({
+  name, strategy: 6, tier: 'advanced',
+  profile: {edgeThreshold, quoteWidth, liveWeight, actionCap:60, quoteEvery:5,
+    widening:0.5, endgame:0.85, useTrackedOdds:true},
+}));
 const lineups = {beginner: beginner.filter(bot => bot.strategy !== 1), intermediate, advanced};
 const means = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 function interval(values) {
@@ -70,14 +80,15 @@ function simulate(subjects, opponents, seeds, marketMode = 'players', measure = 
 }
 function assess(seeds, market = 'players', trained = null) {
   const reference = intermediate.slice(0, 3);
-  const candidates = [...intermediate, ...beginner, ...experts, ...advanced,
+  const candidates = [...intermediate, ...beginner, ...experts, ...analysts, ...advanced,
     {name:'Hold', isHuman:true}, {name:'Random', strategy:'random'}, ...(trained ? [trained] : [])];
   const values = simulate(candidates, reference, seeds, market);
   const best = intermediate.reduce((a, _, i) => means(values[i]) > means(values[a]) ? i : a, 0);
   const hold = values[candidates.findIndex(bot => bot.name === "Hold")];
   const paired = (a, b) => interval(a.map((value, i) => value - b[i]));
   const rows = Object.fromEntries(candidates.map((bot, i) => {
-    const base = i < 16 ? values[i % 4] : values[best];
+    const base = i < intermediate.length + beginner.length + experts.length + analysts.length
+      ? values[i % intermediate.length] : values[best];
     return [bot.name, {profit:interval(values[i]), vsBase:paired(values[i],base), vsBest:paired(values[i],values[best]), vsHold:paired(values[i],hold)}];
   }));
   return { seeds, best: intermediate[best].name, rows,
