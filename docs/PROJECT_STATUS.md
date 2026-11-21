@@ -3,6 +3,25 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Strategist pre-registration — November 20, 2026
+
+The largest step-8 paired standard deviation comes from Analyst Edge.
+Its 400-deal interval has half-width 4.61805, giving SD 47.12 chips
+(4.61805 × √400 / 1.96). For a true +2.0 effect, the normal approximation
+requires ceil(((1.96 + 0.8416) × 47.12 / 2)²), about 4,360 pairs for
+80% power per candidate. The cap is insufficient. Use **2,000 fresh pairs,
+930000–931999**, for approximately 48% power per candidate at that SD.
+This is not a joint power guarantee for all four.
+
+Search on development seeds 1–400. Rank eight finalists on fresh validation
+seeds **520000–520399**. The promotion rule is unchanged: every one of the
+four Advanced candidates must have a paired 95% lower bound above zero
+against the best Intermediate style on those same held-out deals. Each
+subject takes seat 0 against Hunter, Banker and Detective in 60-second
+Players rounds. Freeze the four profiles and seed range in Git before
+opening the held-out range. Run the final evaluation once with no
+post-result tuning; subsequent checks reproduce the frozen evaluation.
+
 ## Analyst promotion experiment — November 20, 2026
 
 **Advanced stays hidden.** All four frozen Analysts beat Hold on the fresh
