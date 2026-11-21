@@ -189,9 +189,8 @@
   byId("tierResearch").innerHTML = "<h3>How bot tiers are rated</h3><p>All three tiers use scripted bots. " +
     "The rating run compares candidates on the same seeds against the same reference table. " +
     "Held-out deals decide promotion, using paired 95% intervals. PPO seats remain available in Custom Lab rounds.</p>" +
-    (advancedReady ? "" : "<p>Advanced is not open yet. On held-out deals no candidate has beaten the best " +
-      "Intermediate bot, so an Advanced table would not be harder than Intermediate. It opens when every " +
-      "Advanced bot beats Intermediate on held-out deals.</p>");
+    (advancedReady ? "" : "<p>Advanced is coming soon. The full lineup did not clear the held-out bar. " +
+      "The tier opens when all four beat the best Intermediate on held-out deals.</p>");
   globalThis.figgieTiers = {
     badge, specs, useCustom, showSettings, started, ended,
     forcesPlayers: (play) => play ? tier !== "custom" : Boolean(matches[preset.value]),
