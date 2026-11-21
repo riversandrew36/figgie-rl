@@ -664,3 +664,32 @@ test('profiled draws replay exactly and Expert respects backing and the book', (
   assert.ok(first[0].length > 0);
   assert.deepEqual(replay(), first);
 });
+
+test('committed tier ratings satisfy the schema and report the measured rules', () => {
+  const path = 'figgie_rl/arena/tier_ratings.json';
+  const ratings = require('../../figgie_rl/arena/tier_ratings.json');
+  assert.ok(fs.statSync(path).size < 10000);
+  assert.equal(ratings.heldOutUsed, true);
+  assert.equal(ratings.market, 'players');
+  assert.match(ratings.revision, /^[a-f0-9]{7,40}$/);
+  assert.deepEqual(ratings.development.seeds, [1, 400]);
+  assert.deepEqual(ratings.heldOut.seeds, [900000, 900399]);
+  assert.equal(ratings.lineups.intermediate.length, 4);
+  for (const block of [ratings.development, ratings.heldOut]) {
+    for (const row of Object.values(block.rows)) {
+      assert.deepEqual(Object.keys(row), ['profit','vsBase','vsBest','vsHold']);
+      for (const values of Object.values(row)) {
+        assert.equal(values.length, 3);
+        assert.ok(values.every(Number.isFinite));
+        assert.ok(values[1] <= values[0] && values[0] <= values[2]);
+      }
+    }
+    const beginner = ratings.lineups.beginner.every(bot => block.rows[bot.name].vsBase[2] < 0 &&
+      block.rows[bot.name].profit[0] > block.rows.Random.profit[0]) && block.novice.paired[1] > 0;
+    assert.equal(block.beginnerPass, beginner);
+    assert.equal(block.advancedPass,
+      ratings.lineups.advanced.every(bot => block.rows[bot.name].vsBest[1] > 0));
+  }
+  assert.equal(ratings.heldOut.beginnerPass, true);
+  assert.ok(ratings.heldOut.novice.paired[1] > 0);
+});
