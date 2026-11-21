@@ -166,6 +166,8 @@ class FiggieViewerGame {
       name: spec.name,
       strategy: spec.strategy,
       policyId: spec.policyId,
+      profile: spec.profile,
+      tier: spec.tier,
       style: spec.style || BOT_STYLES[spec.strategy] || "Human player",
       isHuman: Boolean(spec.isHuman),
       inventory: deal.inventories[idx],
@@ -571,6 +573,25 @@ class FiggieViewerGame {
 
   pickAction(playerIdx) {
     const p = this.players[playerIdx];
+    if (p.strategy === "novice") {
+      const suit = this.argmax(p.inventory);
+      const ask = this.bestAsk(suit, playerIdx);
+      if (ask.seller !== null && ask.price <= 8 && p.cash >= ask.price) return { kind: "buy", suit };
+      for (let i = 0; i < 4; i += 1) {
+        if (p.inventory[i] === 1 && this.bestBid(i, playerIdx).buyer !== null) return { kind: "sell", suit: i };
+      }
+      return { kind: "hold" };
+    }
+    if (p.strategy === "random") {
+      const suit = this.randInt(0, 4);
+      const side = this.randInt(0, 5);
+      if (side === 0) return { kind: "hold" };
+      if (side === 1) return { kind: "buy", suit };
+      if (side === 2) return { kind: "sell", suit };
+      if (side === 3) return this.backedBid(playerIdx, suit, this.randInt(1, 21));
+      return this.backedAsk(playerIdx, suit, this.randInt(1, 21));
+    }
+    if (p.profile || p.strategy === 4) return this.profiledAction(playerIdx);
     if (p.strategy === 0) {
       return this.hunterAction(playerIdx);
     }
@@ -581,6 +602,64 @@ class FiggieViewerGame {
       return this.detectiveAction(playerIdx);
     }
     return this.blufferAction(playerIdx);
+  }
+
+  // Explicit skill profiles use only private holdings and public quotes/flow.
+  // Six uniforms give zero mean and unit variance without platform libm calls.
+  profileNoise() {
+    let sum = -3;
+    for (let draw = 0; draw < 6; draw += 1) sum += this.random();
+    return sum * Math.SQRT2;
+  }
+
+  profiledAction(seat) {
+    const player = this.players[seat];
+    const {
+      actRate = 1, valueNoise = 0, usesTape = true, edgeThreshold = 1, quoteWidth = 2,
+      tapeWeight = 0.35, inventorySkew = 0.65, potWeight = 1,
+    } = player.profile || {};
+    if (actRate < 1 && this.random() >= actRate) return { kind: "hold" };
+    const prior = goalSuitPosterior(player.initialInventory);
+    const flow = usesTape ? this.othersFlow(player) : [0, 0, 0, 0];
+    // Detective weighting (exp of clipped flow). Only noisy draws use the
+    // portable sum of uniforms; scripted tier ratings tolerate libm variance.
+    const weights = prior.map((p, suit) => usesTape
+      ? p * Math.exp(tapeWeight * this.clamp(flow[suit], -10, 10)) : p);
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const fairs = weights.map((weight, suit) => {
+      const held = player.inventory[suit];
+      return weight / total * (this.goalCardValue + (held < 6 ? potWeight * EXPECTED_POT_REMAINDER / 6 : 0))
+        - (held - player.initialInventory[suit]) * inventorySkew
+        + (valueNoise ? valueNoise * this.profileNoise() : 0);
+    });
+    const book = fairs.map((fair, suit) => ({
+      suit, fair, bid: this.bestBid(suit, seat), ask: this.bestAsk(suit, seat),
+    }));
+    let best = { edge: edgeThreshold, action: { kind: "hold" } };
+    for (const { suit, fair, ask, bid } of book) {
+      if (ask.seller !== null && player.cash >= ask.price && fair - ask.price > best.edge) {
+        best = { edge: fair - ask.price, action: { kind: "buy", suit } };
+      }
+      const value = weights[suit] / total < 0.045 ? Math.min(fair, 0) : fair;
+      if (bid.buyer !== null && player.inventory[suit] && bid.price - value > best.edge) {
+        best = { edge: bid.price - value, action: { kind: "sell", suit } };
+      }
+    }
+    if (best.action.kind !== "hold") return best.action;
+    const focus = player.strategy === 0 ? this.argmax(fairs)
+      : player.strategy === 2 ? this.argmax(weights) : (this.tick + seat) % 4;
+    const sellFirst = player.strategy === 3 || Math.floor(this.tick / 4) % 2 > 0;
+    for (let offset = 0; offset < 4; offset += 1) {
+      const suit = (focus + offset) % 4;
+      const { bid, ask, fair } = book[suit];
+      const buy = this.backedBid(seat, suit, Math.floor(Math.min(fair - quoteWidth / 2, ask.price - 1)));
+      const sell = this.backedAsk(seat, suit, Math.ceil(Math.max(fair + quoteWidth / 2, bid.price + 1)));
+      for (const action of sellFirst ? [sell, buy] : [buy, sell]) {
+        if (action.kind === "quote_bid" && action.price < ask.price
+          || action.kind === "quote_ask" && action.price > bid.price) return action;
+      }
+    }
+    return { kind: "hold" };
   }
 
   clearAllQuotes() {
