@@ -40,3 +40,41 @@ Inventory skew and frequent liquidation are consistent with the majority shortfa
 These observations do not isolate the six-card cliff or tape weighting.
 
 Reproduce with `node scripts/diagnose_tiers.cjs`.
+
+## Where Analyst still trails Bluffer — November 20, 2026
+
+Development seeds 1–400. Cells show the mean and paired 95% interval versus
+Bluffer. First final-count tick means the first time the settlement count
+appeared, including tick 0 when the initial count already matched.
+“One short” means exactly one fewer card than the largest opponent count.
+
+| Bot | Profit | Trading cash | Goal payout | Majority payout |
+|---|---:|---:|---:|---:|
+| Bluffer | 7.19 [+0.00, +0.00] | 1.90 [+0.00, +0.00] | 24.35 [+0.00, +0.00] | 30.94 [+0.00, +0.00] |
+| Analyst Edge | 6.00 [-5.81, +3.43] | 0.53 [-3.97, +1.23] | 18.57 [-7.46, -4.09] | 36.90 [+2.07, +9.85] |
+| Analyst Patience | 9.05 [-2.97, +6.69] | 3.28 [-1.06, +3.81] | 18.57 [-7.50, -4.05] | 37.20 [+2.22, +10.29] |
+| Analyst Flow | 8.31 [-3.62, +5.85] | 3.29 [-1.03, +3.80] | 18.23 [-7.84, -4.41] | 36.80 [+1.93, +9.79] |
+| Analyst Anchor | 9.38 [-2.77, +7.14] | 5.88 [+1.60, +6.35] | 17.90 [-8.21, -4.69] | 35.60 [+0.47, +8.84] |
+
+| Bot | Goal cards | Win % | Tie % | Loss % | One short % | First final-count tick | Goal sales |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Bluffer | 2.44 [+0.00, +0.00] | 24.00 [+0.00, +0.00] | 11.50 [+0.00, +0.00] | 64.50 [+0.00, +0.00] | 12.75 [+0.00, +0.00] | 51.53 [+0.00, +0.00] | 0.62 [+0.00, +0.00] |
+| Analyst Edge | 1.86 [-0.75, -0.41] | 30.25 [+2.05, +10.45] | 9.75 [-5.70, +2.20] | 60.00 [-8.58, -0.42] | 3.75 [-12.50, -5.50] | 59.43 [-3.24, +19.04] | 0.92 [+0.16, +0.44] |
+| Analyst Patience | 1.86 [-0.75, -0.40] | 30.25 [+1.88, +10.62] | 10.25 [-5.26, +2.76] | 59.50 [-9.19, -0.81] | 3.25 [-12.91, -6.09] | 34.78 [-26.77, -6.74] | 0.92 [+0.16, +0.45] |
+| Analyst Flow | 1.82 [-0.78, -0.44] | 30.00 [+1.71, +10.29] | 10.00 [-5.48, +2.48] | 60.00 [-8.64, -0.36] | 3.25 [-12.91, -6.09] | 27.67 [-33.43, -14.30] | 0.94 [+0.18, +0.47] |
+| Analyst Anchor | 1.79 [-0.82, -0.47] | 29.25 [+0.81, +9.69] | 9.25 [-6.20, +1.70] | 61.50 [-7.32, +1.32] | 3.75 [-12.50, -5.50] | 15.42 [-44.62, -27.61] | 0.99 [+0.23, +0.52] |
+
+Bluffer bids passively for its favorite while making early aggressive buys
+in its lowest-hand-odds decoy. After the first 30% of the round it sells
+non-favorites with positive flow, tries to unload the decoy, and only lifts
+cheap favorite offers in the closing 15%. It made 1.32 early aggressive
+buys per deal, including 1.24 in the decoy and 0.12 in the true goal.
+An opponent took the same suit within eight ticks of only 0.035 early
+decoy buys per deal, about 2.8%. This measures observed responses and does
+not identify a causal effect of bluffing.
+
+On development deals the Analysts collected fewer goal cards but won more
+majorities than Bluffer. They sold roughly 0.9–1.0 goal cards a round versus
+Bluffer’s 0.62, leaving less goal-card payout to offset their trading costs.
+They were also less often one card short, so the data do not show a uniform
+last-card acquisition problem.

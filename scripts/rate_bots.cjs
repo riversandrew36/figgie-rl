@@ -22,7 +22,7 @@ const experts = [
   profile: { actRate: 1, valueNoise: 0, usesTape: true, edgeThreshold: 2, quoteWidth: 2, potWeight: 0.8, tapeWeight, inventorySkew },
 }));
 // Validation-ranked finalists. Frozen before the new held-out range is opened.
-const advanced = [
+const analysts = [
   ["Analyst Edge", 4, 4],
   ["Analyst Patience", 2, 4],
   ["Analyst Flow", 2, 1],
@@ -32,6 +32,7 @@ const advanced = [
   profile: {edgeThreshold, quoteWidth, actionCap:60, quoteEvery:5, widening:0.5, endgame:0.85, dumpOdds:0.03},
 }));
 // Preserve the Beginner eligibility decision from its original study.
+const advanced = analysts;
 const lineups = {beginner: beginner.filter(bot => bot.strategy !== 1), intermediate, advanced};
 const means = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 function interval(values) {
@@ -143,5 +144,5 @@ function main() {
   console.log(JSON.stringify(results,null,2));
 }
 const markerStart = '<script type="application/json" id="tierRatingsData">';
-module.exports = { simulate, interval, means, lineups, experts };
+module.exports = { simulate, interval, means, lineups, experts, analysts };
 if (require.main === module) main();
