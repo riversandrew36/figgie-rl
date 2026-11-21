@@ -22,6 +22,80 @@ Players rounds. Freeze the four profiles and seed range in Git before
 opening the held-out range. Run the final evaluation once with no
 post-result tuning; subsequent checks reproduce the frozen evaluation.
 
+## Strategist promotion result — November 20, 2026
+
+**Advanced stays closed.** The final run used 2,000
+fresh pairs (930000–931999), with frozen profiles in commit 2726c39. The
+unchanged rule requires every candidate's paired lower 95% bound against the
+best Intermediate to exceed zero.
+
+The [development diagnosis](TIER_DIAGNOSIS.md#where-analyst-still-trails-bluffer--november-20-2026)
+found that Analysts won more majorities on those deals but sold more goal cards
+and earned less goal-card payout. Only about 2.8% of Bluffer's early decoy buys
+were followed by an Intermediate taking the same suit within eight ticks.
+
+Strategist tracks each seat's public transfers. A card surrendered before
+it was bought back still sets a lower bound on the starting hand. The
+estimator tests feasible deck compositions, reserves those lower bounds,
+and importance-samples 16 allocations per composition. The weight corrects
+for sampling from the reserved margins. Using the sampled live holdings,
+it estimates the payout change from transferring a card to or from each
+possible counterparty. When the favorite's majority payout is at risk, it
+protects the full conditional sale value, including majority share.
+
+On development deals with Analyst Edge in seat zero, summed four-class Brier
+loss fell from 0.6928 to 0.6562. The paired change was −0.0367
+[−0.0598, −0.0136]. With Hold as the observer, it fell from 0.6928 to
+0.6610, a paired change of −0.0318 [−0.0529, −0.0107]. We retained the
+tracked odds. No action rollouts were used. Across 9,600 measured decisions
+on seeds 1–40 with the default Strategist and an action cap of 240, the full
+strategy averaged 0.056 ms per decision and the observed maximum was 3.92 ms.
+
+The grid scored 18 Strategist profiles and four Analyst controls on
+development seeds 1–400. The eight leaders were ranked on fresh validation
+seeds 520000–520399. All four frozen finalists use tracked odds, a 60-action
+cap, a quote every five ticks, widening 0.5, and an endgame starting at 85%.
+
+Cells show mean paired chips per round and 95% intervals. Bluffer was the best
+Intermediate reference on all three ranges. Its mean profit was +7.19 on
+development, +7.59 on validation, and +6.65 on held-out.
+
+| Finalist | Edge / spread / live weight | Development vs best | Validation vs best | Held-out vs best | Held-out vs Hold |
+|---|---|---:|---:|---:|---:|
+| Strategist Hold | 2 / 7 / 0.5 | +4.85 [+0.33, +9.37] | +4.05 [-0.81, +8.92] | +2.36 [+0.24, +4.48] | +12.94 [+10.62, +15.25] |
+| Strategist Press | 4 / 7 / 1 | +6.04 [+1.66, +10.42] | +3.83 [-1.21, +8.86] | +3.21 [+1.07, +5.35] | +13.79 [+11.44, +16.13] |
+| Strategist Read | 2 / 4 / 0.5 | +5.07 [+0.50, +9.65] | +3.63 [-1.26, +8.52] | +1.43 [-0.68, +3.55] | +12.01 [+9.69, +14.32] |
+| Strategist Close | 2 / 7 / 1 | +5.10 [+0.63, +9.58] | +3.52 [-1.45, +8.48] | +2.10 [-0.06, +4.25] | +12.67 [+10.39, +14.96] |
+
+### Extra checks
+
+These are on validation deals and do not affect promotion. In the
+all-Strategist test, the control replaces seat zero with Hold and keeps
+the same three opponents. The best Intermediate at the Beginner table
+was Banker.
+
+| Finalist | All-Strategist profit | All-Strategist vs Hold | Beginner profit | Beginner vs Hold | Beginner vs best Intermediate |
+|---|---:|---:|---:|---:|---:|
+| Strategist Hold | +0.73 [-4.55, +6.01] | +20.08 [+15.02, +25.14] | +20.48 [+15.06, +25.91] | +25.41 [+19.66, +31.16] | -8.49 [-13.91, -3.08] |
+| Strategist Press | -0.98 [-6.14, +4.18] | +18.64 [+13.83, +23.46] | +20.10 [+14.63, +25.57] | +25.02 [+19.38, +30.66] | -8.88 [-14.59, -3.18] |
+| Strategist Read | -0.98 [-6.48, +4.52] | +18.22 [+12.67, +23.77] | +18.66 [+13.23, +24.10] | +23.59 [+17.82, +29.36] | -10.32 [-15.70, -4.93] |
+| Strategist Close | +1.84 [-3.47, +7.14] | +21.56 [+16.38, +26.75] | +19.62 [+14.21, +25.03] | +24.55 [+18.97, +30.12] | -9.36 [-14.99, -3.73] |
+
+Bluffer earned -2.02 [-8.25, +4.21] against Strategist Hold, Strategist Press, Strategist Read.
+Against the matched Hold control its difference was +17.70 [+10.70, +24.70].
+
+Hold and Press individually cleared the lower-bound rule. Read and Close
+did not, so the four-seat gate stays closed. All four beat the matched Hold
+controls. They earned positive mean profit at the Beginner table while
+trailing Banker there. Bluffer’s interval against three Strategists spans zero.
+
+Original Expert and Analyst rows remain in the public ratings snapshot.
+The committed data can be verified with `node scripts/rate_bots.cjs --check`.
+
+A next experiment would measure whether the conditional majority model
+is still missing value in multi-card acquisitions, on fresh development
+deals. Do not use this final range to retune or make another promotion decision.
+
 ## Analyst promotion experiment — November 20, 2026
 
 **Advanced stays hidden.** All four frozen Analysts beat Hold on the fresh

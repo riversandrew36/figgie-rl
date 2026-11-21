@@ -53,6 +53,9 @@ function interval(values) {
 }
 function simulate(subjects, opponents, seeds, marketMode = 'players', measure = round => round.players[0].cash - round.startingCash) {
   const context = loadBrowser();
+  // Use the same Node Math implementation without repeated sandbox lookups.
+  // This is evaluation-only and does not change market actions or arithmetic.
+  context.Math = Math;
   if (process.argv.includes('--policy')) {
     const file = process.argv[process.argv.indexOf('--policy') + 1];
     vm.runInContext(fs.readFileSync(file, 'utf8'), context);
