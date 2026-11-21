@@ -751,3 +751,41 @@ test('Analyst majority lookup is reproducible and decisions stay below 1 ms on a
   assert.ok(nonHold > 0);
   assert.ok(perDecision < 1, `Mean decision time was ${perDecision.toFixed(3)} ms`);
 });
+
+test('Strategist infers historical holdings bounds without peeking at the deal', () => {
+  const { run } = load();
+  const result = plain(run(`(() => {
+    game.reset(60000, 7);
+    game.players[0].initialInventory = [2,3,3,2];
+    const prior = [...game.strategistBelief(0).odds];
+    for (let i = 0; i < 9; i++) game.roundLog.push({buyerIdx:2,sellerIdx:1,suit:0});
+    // Buying one back does not erase the original lower bound of nine.
+    game.roundLog.push({buyerIdx:1,sellerIdx:2,suit:0});
+    game.players[1].inventory.fill(0);
+    game.goalSuitIdx = 2;
+    const result = game.strategistBelief(0);
+    return { prior, expected:goalSuitPosterior([2,3,3,2]),
+      odds:result.odds, minimum:result.minimum[0][0], original:game.players[0].strategistState.lower[4] };
+  })()`));
+  result.prior.forEach((p, i) => assert.ok(Math.abs(p - result.expected[i]) < 1e-9));
+  assert.deepEqual(result.odds, [0,1,0,0]);
+  assert.equal(result.minimum, 1);
+  assert.equal(result.original, 9);
+});
+
+test('Strategist rejects a bid below the favorite suit’s live marginal sale value', () => {
+  const { run } = load();
+  assert.equal(run(`(() => {
+    game.reset(60000,7,{playerSpecs:[{name:"Strategist",strategy:6},
+      ...BOT_NAMES.slice(0,3).map((name,strategy)=>({name,strategy}))]});
+    game.players[0].inventory[0] = 3;
+    game.strategistBelief = () => ({valid:true, odds:[1,0,0,0],
+      values:[{buy:[],sell:[undefined,40,70,50],contestable:true},
+        ...Array.from({length:3},()=>({buy:[],sell:[],contestable:false}))]});
+    game.applyAction(1,{kind:"quote_bid",suit:0,price:39});
+    const refused = game.pickAction(0).kind !== "sell";
+    game.tick++;
+    game.applyAction(1,{kind:"quote_bid",suit:0,price:50});
+    return refused && game.pickAction(0).kind === "sell";
+  })()`), true);
+});

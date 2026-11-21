@@ -626,6 +626,7 @@ class FiggieViewerGame {
       if (side === 3) return this.backedBid(playerIdx, suit, this.randInt(1, 21));
       return this.backedAsk(playerIdx, suit, this.randInt(1, 21));
     }
+    if (p.strategy === 6) return this.strategistAction(playerIdx);
     if (p.strategy === 5) return this.analystAction(playerIdx);
     if (p.profile || p.strategy === 4) return this.profiledAction(playerIdx);
     if (p.strategy === 0) {
@@ -758,6 +759,103 @@ class FiggieViewerGame {
       for (const action of candidates) {
         if (action.kind === "quote_bid" && action.price < ask.price
           || action.kind === "quote_ask" && action.price > bid.price) return chooseAction(action);
+      }
+    }
+    return hold;
+  }
+
+  // Only the initial private hand and the chronological public tape enter
+  // this estimator. Reuse samples until another card changes hands.
+  strategistBelief(seat) {
+    const player = this.players[seat];
+    const state = player.strategistState ??= {
+      cursor: 0, net: new Int32Array(16), lower: new Int32Array(16),
+    };
+    if (state.result && state.cursor === this.roundLog.length) return state.result;
+    for (; state.cursor < this.roundLog.length; state.cursor++) {
+      const trade = this.roundLog[state.cursor];
+      const seller = 4 * trade.sellerIdx + trade.suit;
+      state.net[4 * trade.buyerIdx + trade.suit]++;
+      state.net[seller]--;
+      state.lower[seller] = Math.max(state.lower[seller], -state.net[seller]);
+    }
+    return state.result = strategistSample(player.initialInventory, seat, state.net, state.lower);
+  }
+
+  strategistAction(seat) {
+    const player = this.players[seat];
+    const {
+      edgeThreshold = 2, quoteWidth = 3, widening = 0.5, actionCap = 85,
+      quoteEvery = 4, endgame = 0.78, liveWeight = 1, useTrackedOdds = true,
+    } = player.profile || {};
+    const hold = { kind: "hold" };
+    if (player.strategistTick === this.tick || (player.strategistActions || 0) >= actionCap) return hold;
+    player.strategistTick = this.tick;
+    const emit = (action) => {
+      player.strategistActions = (player.strategistActions || 0) + 1;
+      return action;
+    };
+    const inferred = this.strategistBelief(seat);
+    const prior = goalSuitPosterior(player.initialInventory);
+    const odds = useTrackedOdds && inferred.valid ? inferred.odds : prior;
+    const favorite = this.argmax(odds);
+    const eight = analystEightProbability(player.initialInventory);
+    const late = this.roundFraction() >= endgame;
+    const market = odds.map((probability, suit) => {
+      const bid = this.bestBid(suit, seat);
+      const ask = this.bestAsk(suit, seat);
+      const held = player.inventory[suit];
+      const current = analystHoldingValue(held, eight[suit]);
+      const staticBuy = analystHoldingValue(held + 1, eight[suit]) - current;
+      const staticSell = current - analystHoldingValue(held - 1, eight[suit]);
+      const estimate = inferred.values[suit];
+      const take = estimate.buy[ask.seller] ?? estimate.averageBuy ?? staticBuy;
+      const give = estimate.sell[bid.buyer] ?? estimate.averageSell ?? staticSell;
+      const mix = (baseline, live) => probability * (baseline + liveWeight * (live - baseline));
+      // When the race is live, protect the favorite at its entire live
+      // conditional sale value, including the payout lost to the buyer.
+      const protect = suit === favorite && estimate.contestable;
+      return {
+        suit, bid, ask, buy: mix(staticBuy, take),
+        sell: protect ? Math.max(give, mix(staticSell, give)) : mix(staticSell, give),
+        quoteBuy: mix(staticBuy, estimate.averageBuy ?? staticBuy),
+        quoteSell: protect ? Math.max(...estimate.sell.filter(Number.isFinite))
+          : mix(staticSell, estimate.averageSell ?? staticSell),
+      };
+    });
+    let best = hold;
+    let edge = late ? 0 : edgeThreshold;
+    for (const row of market) {
+      const { suit, bid, ask } = row;
+      if (ask.seller !== null && player.cash >= ask.price && row.buy - ask.price > edge) {
+        best = { kind: "buy", suit };
+        edge = row.buy - ask.price;
+      }
+      if (bid.buyer !== null && player.inventory[suit] && bid.price - row.sell > edge) {
+        best = { kind: "sell", suit };
+        edge = bid.price - row.sell;
+      }
+    }
+    if (best !== hold) return emit(best);
+    if ((this.tick + seat) % quoteEvery) return hold;
+    const pressure = [0, 0, 0, 0];
+    for (let i = this.roundLog.length - 1; i >= 0; i--) {
+      const trade = this.roundLog[i];
+      if (this.tick - trade.tick > 12) break;
+      pressure[trade.suit] += trade.aggressorSide === "buy" ? 1 : -1;
+    }
+    const askFirst = Math.floor(this.tick / quoteEvery) % 2 === 0;
+    for (const row of market.sort((a, b) => b.quoteBuy - a.quoteBuy)) {
+      const { suit, bid, ask } = row;
+      const buyPrice = Math.floor(Math.min(ask.price - 1,
+        row.quoteBuy - quoteWidth / 2 + widening * Math.min(0, pressure[suit])));
+      const sellPrice = Math.ceil(Math.max(bid.price + 1,
+        row.quoteSell + quoteWidth / 2 + widening * Math.max(0, pressure[suit])));
+      const buy = buyPrice > 0 ? this.backedBid(seat, suit, buyPrice) : hold;
+      const sell = sellPrice <= 60 ? this.backedAsk(seat, suit, sellPrice) : hold;
+      for (const action of askFirst ? [sell, buy] : [buy, sell]) {
+        if ((action.kind === "quote_bid" && action.price < ask.price) ||
+            (action.kind === "quote_ask" && action.price > bid.price)) return emit(action);
       }
     }
     return hold;
@@ -1366,6 +1464,106 @@ function goalSuitPosterior(hand) {
   const normalized = total > 0 ? posterior.map((p) => p / total) : Array(SUITS.length).fill(0.25);
   posteriorCache.set(key, normalized);
   return normalized;
+}
+
+const strategistCache = new Map();
+const strategistFactorials = Array.from({ length: 31 }, (_, i) => i)
+  .reduce((acc, n) => n ? [...acc, acc[n - 1] * n] : [1], []);
+
+// Importance sample within each feasible deck composition. Reserve inferred
+// minimums in both margins, shuffle only the residual cards, then correct the
+// proposal by the ratio of original and residual hypergeometric weights.
+function strategistSample(hand, seat, net, lower) {
+  const key = [hand, seat, net, lower].join("/");
+  if (strategistCache.has(key)) return strategistCache.get(key);
+  const fact = strategistFactorials;
+  const others = [0, 1, 2, 3].filter(index => index !== seat);
+  const rows = others.map(index => 10 - SUITS.reduce((sum, _, suit) => sum + lower[4 * index + suit], 0));
+  const required = SUITS.map((_, suit) => others.reduce((sum, index) => sum + lower[4 * index + suit], 0));
+  const residual = rows.reduce((a, b) => a + b, 0);
+  const values = SUITS.map(() => ({
+    mass: 0, contestable: false, buy: [], sell: [], buyMass: [0,0,0,0],
+  }));
+  const minimum = others.map(index => SUITS.map((_, suit) => lower[4 * index + suit] + net[4 * index + suit]));
+  const slots = others.flatMap((index, i) => Array(rows[i]).fill(index));
+  // A private deterministic stream avoids consuming the shared game RNG.
+  let state = 94719;
+  for (const count of hand) state = Math.imul(state ^ (count + 1), 16777619);
+  for (const count of lower) state = Math.imul(state ^ (count + 1), 16777619);
+  const next = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 2 ** 32);
+  const own = SUITS.map((_, suit) => hand[suit] + net[4 * seat + suit]);
+  const rowCorrection = rows.reduce((weight, count) => weight * fact[10] / fact[count],
+    fact[residual] / fact[30]);
+  for (let heavy = 0; heavy < 4; heavy++) {
+    const goal = COLOR_PARTNER[heavy];
+    const value = values[goal];
+    for (let short = 0; short < 4; short++) {
+      if (short === heavy) continue;
+      const totals = SUITS.map((_, suit) => suit === heavy ? 12 : suit === short ? 8 : 10);
+      const counts = totals.map((total, suit) => total - hand[suit] - required[suit]);
+      if (counts.some(count => count < 0)) continue;
+      const cards = counts.flatMap((count, suit) => Array(count).fill(suit));
+      let base = rowCorrection;
+      for (let suit = 0; suit < 4; suit++) {
+        base *= choose(totals[suit], hand[suit]) * fact[totals[suit] - hand[suit]] / fact[counts[suit]];
+      }
+      const remaining = 200 - 10 * totals[goal];
+      const payout = (held, opponents) => {
+        if (opponents.some(other => other > held)) return 0;
+        return remaining / (1 + opponents.filter(other => other === held).length);
+      };
+      for (let sample = 0; sample < 16; sample++) {
+        const allocation = new Int32Array(lower);
+        for (let i = 0; i < residual; i++) {
+          const pick = i + (next() * (residual - i) | 0);
+          [cards[i], cards[pick]] = [cards[pick], cards[i]];
+          allocation[4 * slots[i] + cards[i]]++;
+        }
+        let weight = base;
+        for (const index of others) {
+          for (let suit = 0; suit < 4; suit++) {
+            const offset = 4 * index + suit;
+            const reserved = lower[offset];
+            if (reserved) weight *= fact[allocation[offset] - reserved] / fact[allocation[offset]];
+          }
+        }
+        value.mass += weight;
+        const positions = others.map(index => allocation[4 * index + goal] + net[4 * index + goal]);
+        const held = own[goal];
+        const current = payout(held, positions);
+        for (let i = 0; i < others.length; i++) {
+          const index = others[i];
+          if (positions[i] > 0) {
+            positions[i]--;
+            value.buy[index] = (value.buy[index] || 0) + weight * (10 + payout(held + 1, positions) - current);
+            value.buyMass[index] += weight;
+            positions[i]++;
+          }
+          positions[i]++;
+          const after = held > 0 ? payout(held - 1, positions) : current;
+          value.sell[index] = (value.sell[index] || 0) + weight * (10 + current - after);
+          if (current !== after) value.contestable = true;
+          positions[i]--;
+        }
+      }
+    }
+  }
+  const total = values.reduce((sum, value) => sum + value.mass, 0);
+  for (const value of values) {
+    for (const index of others) {
+      if (value.buyMass[index]) value.buy[index] /= value.buyMass[index];
+      if (value.mass) value.sell[index] /= value.mass;
+    }
+    const buy = value.buy.filter(Number.isFinite);
+    const sell = value.sell.filter(Number.isFinite);
+    if (buy.length) value.averageBuy = buy.reduce((a, b) => a + b, 0) / buy.length;
+    if (sell.length) value.averageSell = sell.reduce((a, b) => a + b, 0) / sell.length;
+  }
+  const result = { valid: total > 0,
+    odds: total > 0 ? values.map(value => value.mass / total) : goalSuitPosterior(hand), values, minimum };
+  if (strategistCache.size >= 4096) strategistCache.delete(strategistCache.keys().next().value);
+  strategistCache.set(key, result);
+  return result;
 }
 
 const game = new FiggieViewerGame();
