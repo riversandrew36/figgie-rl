@@ -9,7 +9,9 @@ test('a first visit lands in Play with a one-minute round', async ({ page }) => 
   await page.goto('/figgie-rl/');
   await expect(page.locator('#playModeInput')).toBeChecked();
   await expect(page.locator('#durationSelect')).toHaveValue('60000');
-  await expect(page.locator('#opponentPicker, .opponent-picker').first()).toBeVisible();
+  await expect(page.locator('#tierBeginner')).toBeChecked();
+  await expect(page.locator('#opponentPicker')).toBeHidden();
+  await expect(page.locator('#tableCenter')).toContainText('Beginner table');
 });
 
 test('learner can control, understand, export and repeat a round without an account', async ({ page }) => {
@@ -76,7 +78,7 @@ test('share links use clipboard when available and provide selectable fallback',
   await page.locator('#shareBtn').click();
   await expect(page.locator('#shareStatus')).toContainText('copied');
   const link = await page.locator('#shareUrl').inputValue();
-  expect(new URL(link).search).toBe('?seed=83&duration=60000&market=players&version=2.0.0&mode=play');
+  expect(new URL(link).search).toBe('?seed=83&duration=60000&market=players&version=2.0.0&mode=play&tier=beginner');
   expect(await page.evaluate(() => window.copiedText)).toBe(link);
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
     configurable: true, value: { writeText: async () => { throw Error('denied'); } },
@@ -383,7 +385,7 @@ test('front page fits credit and daily card and starts a round in one click', as
   await page.screenshot({ path: info.outputPath('front-page.png'), animations: 'disabled' });
   await page.locator('#playNow').click();
   expect(await page.evaluate(() => [game.running, game.durationMs, game.players.map(p => p.name)]))
-    .toEqual([true, 60000, ['You', 'Hunter', 'Banker', 'Detective']]);
+    .toEqual([true, 60000, ['You', 'Rookie Hunter', 'Rookie Detective', 'Rookie Bluffer']]);
   await expect(page.locator('#pokerTable')).toBeInViewport();
 });
 
@@ -483,6 +485,7 @@ test('PPO seats load on selection, play Lab, and survive a shared link', async (
   await page.goto('/figgie-rl/');
   const weights = () => requests.filter((url) => url.includes('/policies/'));
   expect(weights()).toEqual([]);
+  await page.locator('#tierCustom').check();
   await page.locator('#opponentDetective').uncheck();
   await page.locator('#opponentppo_no_aids').check();
   await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
@@ -640,4 +643,59 @@ test('table view seats a trained bot in Lab and queues your action for your turn
   await completeRound(page);
   await expect(page.locator('.seat .seat-result')).toHaveCount(4);
   expect(errors).toEqual([]);
+});
+
+test('tier selection controls the table, settles all three tiers, and survives reload', async ({page}, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({width:375,height:812});
+  await page.goto('/figgie-rl/');
+  await expect(page.locator('#tierBeginner')).toBeChecked();
+  await expect(page.locator('#tableCenter')).toContainText('Beginner table');
+  await page.locator('#tierPicker').screenshot({path: info.outputPath('tier-picker.png')});
+  await page.locator('#pokerTable').screenshot({path: info.outputPath('beginner-table.png')});
+  for (const tier of ['Beginner','Intermediate','Advanced']) {
+    await page.locator('#tier'+tier).check();
+    await expect(page.locator('#tableCenter')).toContainText(tier);
+    if (tier === 'Advanced') {
+      await expect(page.locator('.seat .seat-name').filter({hasText:'Expert'})).toHaveCount(3);
+      await expect(page.locator('.seat .tier-badge').filter({hasText:'Advanced'})).toHaveCount(3);
+    }
+    await page.locator('#tableCenter').getByRole('button', {name:'Deal me in'}).click();
+    await page.locator('#pauseBtn').click();
+    await page.locator('#tableHand [data-table-suit="0"]').click();
+    await page.locator('#tableActions [data-table-action="quote_bid"]').click();
+    await completeRound(page);
+    await expect(page.locator('#pokerTable .seat-result')).toHaveCount(4);
+  }
+  await expect(page.locator('#tierProgress')).toContainText('Advanced');
+  await page.locator('#shareBtn').click();
+  const link = await page.locator('#shareUrl').inputValue();
+  expect(new URL(link).searchParams.get('tier')).toBe('advanced');
+  await page.reload();
+  await expect(page.locator('#tierAdvanced')).toBeChecked();
+  await page.goto(link);
+  await expect(page.locator('#tableCenter')).toContainText('Advanced');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test('tier battles settle below the table and run twenty in chunks with storage blocked', async ({page}, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({width:375,height:812});
+  await page.addInitScript(() => Object.defineProperty(window,'localStorage',{get(){throw Error('blocked');}}));
+  await page.goto('/figgie-rl/');
+  await expect(page.locator('#tierBeginner')).toBeChecked();
+  await page.locator('#watchModeInput').check();
+  await page.locator('#battlePreset').selectOption('advanced-v-intermediate');
+  await page.locator('#tableCenter').getByRole('button', {name:'Start the round'}).click();
+  await completeRound(page);
+  await expect(page.locator('#battleResults')).toBeVisible();
+  await expect(page.locator('#battleResultRows li')).toHaveCount(4);
+  expect(await page.locator('#battleResults').evaluate(el => el.previousElementSibling.id)).toBe('pokerTable');
+  await page.locator('#battleResults').screenshot({path: info.outputPath('battle-results.png')});
+  await page.locator('#battleBatch').click();
+  // A main-thread callback and progress render can run before the final summary.
+  await expect(page.locator('#battleBatchStatus')).not.toBeEmpty();
+  await expect(page.locator('#battleBatchStatus')).toContainText('20 battles complete');
+  await expect(page.locator('#battleBatchRows li')).toHaveCount(2);
+  await expect(page.locator('#battleBatchRows')).toContainText('95% interval');
+  await page.locator('#battleBatchResults').screenshot({path: info.outputPath('battle-batch.png')});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });

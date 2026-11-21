@@ -551,3 +551,14 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .rl-curves h4 { margin: 0; }
 
 .lineup-note { flex-basis: 100%; margin: 0; }
+
+#tierPicker { display:flex; flex-wrap:wrap; gap:0.3rem 0.8rem; border:1px solid var(--line); border-radius:12px; }
+#tierPicker label { display:inline-flex; align-items:center; min-height:44px; gap:0.4rem; }
+#tierPicker input { width:auto; }
+#tierDescription { flex-basis:100%; margin:0; }
+#battlePreset { max-width:100%; min-height:44px; }
+#battleSettings button { min-height:44px; }
+#battleResultRows { display:flex; flex-wrap:wrap; gap:0.5rem; padding:0; list-style:none; }
+#battleResultRows li { border:1px solid var(--line); padding:0.35rem 0.6rem; border-radius:10px; }
+.tier-badge { font-size:0.7em; color:var(--muted); white-space:nowrap; }
+.seat-name .tier-badge { display:block; line-height:1.1; overflow:hidden; text-overflow:ellipsis; }

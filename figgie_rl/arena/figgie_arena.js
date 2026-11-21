@@ -1353,6 +1353,13 @@ function updateStrengthTracker() {
   const finals = game.players.map((p) => p.cash);
   const stats = new Map(strengthTracker.bots.map((bot) => [bot.name, bot]));
   const deltas = new Map(game.players.map((player) => [player.name, 0]));
+  if (game.players.some((player) => player.tier)) {
+    // Tier profit has its own tracker. Keep mixed-lineup rounds out of the
+    // original style ratings, but retain the overall settled-round count.
+    strengthTracker.rounds += 1;
+    saveStrengthTracker();
+    return;
+  }
 
   for (let i = 0; i < finals.length; i += 1) {
     for (let j = i + 1; j < finals.length; j += 1) {
@@ -1437,6 +1444,8 @@ function selectedOpponents() {
 }
 
 function playerSpecsForMode(playMode = isPlayMode()) {
+  const tierLineup = globalThis.figgieTiers?.specs?.(playMode);
+  if (tierLineup) return tierLineup;
   const opponents = selectedOpponents();
   const hasPpo = opponents.some((id) => Object.hasOwn(PPO_SEATS, id));
   if (!playMode && !hasPpo) return BOT_NAMES.map((name, strategy) => ({ name, strategy }));
@@ -1457,6 +1466,7 @@ function clearExplanation() {
 }
 
 function selectedMarket(playMode) {
+  if (globalThis.figgieTiers?.forcesPlayers?.(playMode)) return "players";
   if (selectedOpponents().some((id) => Object.hasOwn(PPO_SEATS, id))) return "lab";
   if (playMode) return "players";
   return MARKET_MODES.includes(marketModeSelect?.value) ? marketModeSelect.value : "players";
@@ -1473,7 +1483,7 @@ function refreshModePreview() {
     marketModeSelect.value = marketMode;
     marketModeSelect.disabled = playMode;
   }
-  const pickedPolicies = selectedOpponents().filter((id) => Object.hasOwn(PPO_SEATS, id));
+  const pickedPolicies = (playerSpecs || []).flatMap((spec) => spec.policyId ? [spec.policyId] : []);
   if (opponentPickerEl) opponentPickerEl.hidden = false;
   document.getElementById("lineupHelp").textContent = playMode
     ? "Choose three opponents." : "Watch uses four scripted styles by default. For PPO, check exactly four seats.";
@@ -1674,6 +1684,7 @@ function render() {
   renderStrengthTracker();
   globalThis.figgieTeaching?.render();
   globalThis.figgieTable?.render();
+  globalThis.figgieTiers?.showSettings?.();
 }
 
 function onRoundEnded() {
@@ -1691,6 +1702,7 @@ function onRoundEnded() {
   downloadBtn.disabled = false;
   updateStrengthTracker();
   globalThis.figgieTeaching?.roundEnded();
+  globalThis.figgieTiers?.ended?.();
   renderExplanation(game);
 
   const topBankroll = Math.max(...game.players.map((p) => p.cash));
@@ -1758,6 +1770,7 @@ playBtn.addEventListener("click", () => {
   summaryEl.textContent = `Round in progress... each player starts with $${game.startingCash.toFixed(0)} and posts a $${game.ante.toFixed(0)} ante (cash at open: $${game.cashAfterAnte.toFixed(0)}).`;
   game.start(selectedMs, selectedSeed, selectedSpeed, { marketMode, humanSeated: playMode, playerSpecs });
   globalThis.figgieTeaching?.roundStarted();
+  globalThis.figgieTiers?.started?.();
   render();
   if (playMode) (document.querySelector?.("#tableHand [aria-pressed=\"true\"]") || marketGridEl).focus();
 });
@@ -1971,7 +1984,7 @@ function renderExplanation(round) {
     `(${dollars(highest - round.startingCash)} each). Collecting the most goal cards and earning the most profit are different outcomes.`;
   document.getElementById("payoutRows").innerHTML = round.players.map((player) => {
     const p = payoutBreakdown(round, player);
-    return `<tr><th scope="row">${player.name}</th>` +
+    return `<tr><th scope="row">${player.name}${globalThis.figgieTiers?.badge?.(player) || ""}</th>` +
       [p.startingCash, -p.ante, p.netTradingCashflow, p.goalCardPayout,
         p.majorityPayout, p.finalBankroll, p.netProfit]
         .map((value) => `<td>${dollars(value)}</td>`).join("") + "</tr>";
@@ -2003,10 +2016,11 @@ function scenarioUrl() {
   url.searchParams.set("version", SIMULATION_VERSION);
   if (game.humanSeated) url.searchParams.set("mode", "play");
   const opponents = game.players.filter((player) => !player.isHuman).map((player) => player.policyId || player.name);
-  if ((game.humanSeated && opponents.length === 3 && opponents.join(",") !== BOT_NAMES.slice(0, 3).join(","))
-    || (!game.humanSeated && opponents.some((id) => Object.hasOwn(PPO_SEATS, id)))) {
+  if (!game.players.some((player) => player.tier) && ((game.humanSeated && opponents.length === 3 && opponents.join(",") !== BOT_NAMES.slice(0, 3).join(","))
+    || (!game.humanSeated && opponents.some((id) => Object.hasOwn(PPO_SEATS, id))))) {
     url.searchParams.set("opponents", opponents.join(","));
   }
+  globalThis.figgieTiers?.share?.(url);
   return url.href;
 }
 

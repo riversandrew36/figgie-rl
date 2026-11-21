@@ -61,6 +61,7 @@ py-modules = ["figgie_play"]
   "figgie_table.js",
   "figgie_table.css",
   "tier_ratings.json",
+  "figgie_tiers.js",
 ]
 
 [tool.pytest.ini_options]
