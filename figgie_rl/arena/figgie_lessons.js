@@ -410,6 +410,7 @@ const arenaTeaching = (() => {
   }
 
   function startTutorial() {
+    globalThis.figgieTiers?.useCustom?.();
     marketModeSelect.value = "players";
     for (const id of Object.keys(PPO_SEATS)) byId("opponent" + id).checked = false;
     if (step >= 0) return;
@@ -598,6 +599,7 @@ const arenaTeaching = (() => {
   }
 
   function prepareLesson(id) {
+    globalThis.figgieTiers?.useCustom?.();
     marketModeSelect.value = "players";
     for (const id of Object.keys(PPO_SEATS)) byId("opponent" + id).checked = false;
     const lesson = BOT_LESSONS[id];
@@ -663,7 +665,8 @@ const arenaTeaching = (() => {
     const payout = payoutBreakdown(game, game.players[seat]);
     const rows = trades.map((trade) => [
       coachTime(game, trade.tick), trade.buy ? "Buy" : "Sell", SUITS[trade.suit].name,
-      "$" + trade.price.toFixed(2), game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name,
+      "$" + trade.price.toFixed(2), game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx].name +
+        (globalThis.figgieTiers?.badge?.(game.players[trade.buy ? trade.sellerIdx : trade.buyerIdx]) || ""),
       coachMoney(trade.value), coachMoney(trade.edge),
     ]);
     const tone = (index) => trades[index].edge > 0 ? "pos" : trades[index].edge < 0 ? "neg" : "";
@@ -730,6 +733,7 @@ const arenaTeaching = (() => {
 
   byId("coachReplay").addEventListener("click", () => {
     if (!game.revealGoal || !game.humanSeated) return;
+    globalThis.figgieTiers?.restore?.(game);
     const lineup = game.players.filter((player) => !player.isHuman).map((player) => player.policyId || player.name);
     playModeInput.checked = true;
     seedInput.value = game.seed;
@@ -813,6 +817,7 @@ const arenaTeaching = (() => {
   }
 
   function startDaily() {
+    globalThis.figgieTiers?.useCustom?.();
     const today = utcDay();
     const date = selectedDay(today);
     const scored = dailyAttempt(days, date, today);

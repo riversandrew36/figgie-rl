@@ -16,4 +16,5 @@ ARENA_ASSETS = (
     "figgie_table.js",
     "figgie_table.css",
     "tier_ratings.json",
+    "figgie_tiers.js",
 )

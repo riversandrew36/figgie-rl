@@ -20,7 +20,7 @@
   side.setAttribute("aria-label", "Round tools");
   arenaEl.before(layout);
   layout.append(mainColumn, side);
-  for (const id of ["pokerTable", "arena", "dailyResult", "roundCoach", "round-explanation"]) {
+  for (const id of ["pokerTable", "battleResults", "battleBatchResults", "arena", "dailyResult", "roundCoach", "round-explanation"]) {
     const node = byId(id);
     if (node) mainColumn.append(node);
   }
@@ -83,7 +83,7 @@
       ? `<div class="seat-hand">${SUITS.map((_, suit) => `<span>${suitMark(suit)}${player.inventory[suit]}</span>`).join("")}</div>`
       : "";
     return `
-      <div class="seat-name">${player.isHuman ? "You" : player.name}${winner ? ' <span class="seat-badge">Majority</span>' : ""}</div>
+      <div class="seat-name">${player.isHuman ? "You" : player.name}${globalThis.figgieTiers?.badge?.(player) || ""}${winner ? ' <span class="seat-badge">Majority</span>' : ""}</div>
       <div class="seat-stats">${stats}</div>
       ${hand}
       <div class="seat-quotes">${quotes.length ? quotes.join(" · ") : "No quotes"}</div>
@@ -205,7 +205,7 @@
         </div>`;
     } else {
       const play = isPlayMode();
-      markup = `<p class="center-title">${play ? "Take your seat" : "Watch the bots"}</p>
+      markup = `<p class="center-title">${globalThis.figgieTiers?.tableTitle?.() || (play ? "Take your seat" : "Watch the bots")}</p>
         <div class="center-actions"><button type="button" data-table-center="deal">${play ? "Deal me in" : "Start the round"}</button></div>`;
     }
     if (centerEl.dataset.markup !== markup) {
@@ -216,7 +216,7 @@
   }
 
   function feedLine(trade, seat) {
-    const name = (idx) => (idx === -1 ? "Market" : idx === seat ? "You" : game.players[idx].name);
+    const name = (idx) => (idx === -1 ? "Market" : idx === seat ? "You" : game.players[idx].name + (globalThis.figgieTiers?.badge?.(game.players[idx]) || ""));
     const mine = trade.buyerIdx === seat || trade.sellerIdx === seat;
     const time = formatTime(Math.max(0, trade.tick * game.tickMs));
     return `<li class="${mine ? "mine" : ""}"><span class="feed-time">${time}</span>

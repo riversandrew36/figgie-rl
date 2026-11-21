@@ -27,6 +27,7 @@ def test_arena_directory_serves_packaged_files() -> None:
     assert "figgie_lab_policy.js" in html
     assert "policies/ppo_" not in html
     assert 'id="tierRatingsData"' in html
+    assert "figgie_tiers.js" in html
     assert "figgie_table.js" in html and "figgie_table.css" in html
     for name in ARENA_ASSETS:
         path = root / name
