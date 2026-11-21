@@ -3,6 +3,70 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Analyst promotion experiment — November 20, 2026
+
+**Advanced stays hidden.** All four frozen Analysts beat Hold on the fresh
+final range, but none had a positive lower 95% bound against Bluffer. The
+promotion rule, picker, battle presets, and Advanced-link fallback are unchanged.
+
+The [Expert diagnosis](TIER_DIAGNOSIS.md) puts the main deficit in settlement.
+Experts made more trading cash, yet ended with fewer goal cards and much less
+majority payout. Their buy markouts do not show the predicted overpayment.
+The comparisons do not isolate the flat bonus cutoff or tape weighting.
+
+Analyst starts from the exact initial-hand posterior. Its expected payoff
+uses 30,000 seeded samples per entry for eight- and ten-card goal suits,
+mixing sole wins and each tie size. The remaining unseen cards are treated
+as exchangeable across opponents. This model for current holdings does not
+infer hidden hands from specific opponent transfers. A buy or sale is valued
+by the corresponding one-card change in payoff.
+
+A discrete tape likelihood fit on development seeds 1–200 raised Brier loss
+from 0.6980 to 0.7070 on seeds 201–400, with Hold in seat zero. Analyst keeps
+hand-only goal odds. Recent aggressive trades can still widen its quotes.
+
+The search scored 18 profiles on development seeds 1–400 and ranked the top
+five by mean paired difference on validation seeds 500000–500399. The top
+four were committed before opening fresh held-out seeds 912000–912399.
+The previous 900000–900399 range was not reused. All profiles share an
+action cap of 60, quote cadence of five ticks, widening factor 0.5, endgame
+at 85% of the round, and a 3% low-odds dump threshold.
+
+Cells show paired chips per round and normal-approximation 95% intervals.
+Bluffer was the best Intermediate on all three ranges. Its mean profit was
++7.19 on development, +2.95 on validation, and +6.00 on held-out.
+
+| Analyst | Edge threshold | Quote width | Development vs Bluffer | Validation vs Bluffer | Held-out vs Bluffer | Held-out vs Hold |
+|---|---:|---:|---:|---:|---:|---:|
+| Analyst Edge | 4 | 4 | -1.19 [-5.81, +3.43] | +0.66 [-4.09, +5.41] | -0.91 [-5.53, +3.71] | +11.21 [+6.20, +16.21] |
+| Analyst Patience | 2 | 4 | +1.86 [-2.97, +6.69] | -0.01 [-4.72, +4.70] | -2.79 [-7.17, +1.58] | +9.33 [+4.61, +14.05] |
+| Analyst Flow | 2 | 1 | +1.12 [-3.62, +5.85] | -1.12 [-5.95, +3.71] | -4.25 [-8.84, +0.35] | +7.87 [+3.17, +12.57] |
+| Analyst Anchor | 0.5 | 4 | +2.18 [-2.77, +7.14] | -3.21 [-7.96, +1.55] | -4.34 [-8.83, +0.14] | +7.78 [+3.34, +12.21] |
+
+Extra checks use the validation range and do not enter promotion. All-Analyst
+puts the tested bot or Hold in seat zero against the other three finalists.
+At the Beginner table, the strongest Intermediate reference was Banker (+28.53 chips).
+
+| Analyst | All-Analyst profit | All-Analyst vs Hold | Beginner profit | Beginner vs Hold | Beginner vs Banker |
+|---|---:|---:|---:|---:|---:|
+| Analyst Edge | -1.64 [-6.56, +3.28] | +20.18 [+15.94, +24.43] | +12.99 [+7.83, +18.14] | +21.77 [+16.87, +26.67] | -15.54 [-20.85, -10.24] |
+| Analyst Patience | -0.05 [-4.94, +4.83] | +21.77 [+17.40, +26.14] | +13.83 [+8.61, +19.05] | +22.62 [+17.56, +27.68] | -14.70 [-19.99, -9.41] |
+| Analyst Flow | -2.37 [-7.59, +2.85] | +19.20 [+14.65, +23.76] | +11.01 [+5.92, +16.10] | +19.79 [+15.10, +24.49] | -17.52 [-22.66, -12.38] |
+| Analyst Anchor | +1.94 [-3.33, +7.21] | +23.77 [+18.94, +28.59] | +13.47 [+8.32, +18.63] | +22.26 [+17.23, +27.28] | -15.06 [-20.22, -9.89] |
+
+All four cleared Hold at both extra tables. On Beginner they earned positive
+mean profit and still trailed the Intermediate Banker reference.
+The original Experts remain in both ratings blocks for comparison. Beginner’s
+previously qualified lineup was carried forward without changes.
+
+```sh
+node scripts/diagnose_tiers.cjs
+node scripts/calibrate_analyst_tape.cjs
+node scripts/tune_advanced.cjs /tmp/analyst-search.json
+node scripts/tune_advanced.cjs --extra
+node scripts/rate_bots.cjs --check
+```
+
 ## Measured bot tiers and battles — November 20, 2026
 
 All tier seats are scripted. Beginner uses Rookie Hunter, Rookie Detective,
