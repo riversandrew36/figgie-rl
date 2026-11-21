@@ -28,7 +28,7 @@ function interval(values) {
   const half = 1.96 * Math.sqrt(variance / values.length);
   return [mean, mean - half, mean + half].map((value) => Number(value.toFixed(4)));
 }
-function simulate(subjects, opponents, seeds, marketMode = 'players') {
+function simulate(subjects, opponents, seeds, marketMode = 'players', measure = round => round.players[0].cash - round.startingCash) {
   const context = loadBrowser();
   if (process.argv.includes('--policy')) {
     const file = process.argv[process.argv.indexOf('--policy') + 1];
@@ -36,6 +36,7 @@ function simulate(subjects, opponents, seeds, marketMode = 'players') {
   }
   context.settings = { subjects, opponents, seeds, marketMode };
   return vm.runInContext(`(() => {
+    const measure = (${measure.toString()});
     const {subjects, opponents, seeds, marketMode} = settings;
     return subjects.map(subject => Array.from({length:seeds[1]-seeds[0]+1}, (_, offset) => {
       const round = new FiggieViewerGame();
@@ -50,7 +51,7 @@ function simulate(subjects, opponents, seeds, marketMode = 'players') {
         }
       }
       round.settleRound();
-      return round.players[0].cash - round.startingCash;
+      return measure(round);
     }));
   })()`, context);
 }
@@ -136,4 +137,5 @@ function main() {
   console.log(JSON.stringify(results,null,2));
 }
 const markerStart = '<script type="application/json" id="tierRatingsData">';
+module.exports = { simulate, interval, means, lineups };
 if (require.main === module) main();

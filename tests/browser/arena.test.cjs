@@ -712,3 +712,13 @@ test('tier share restores measured opponents and old links retain their lineup',
     assert.equal(new URL(run('scenarioUrl()')).searchParams.get('tier'), tier);
   }
 });
+
+test('tier diagnosis reconciles cashflow and settlement on five development deals', () => {
+  const { diagnose } = require('../../scripts/diagnose_tiers.cjs');
+  const report = diagnose(5);
+  assert.deepEqual(report.seeds, [1,5]);
+  for (const row of Object.values(report.rows)) {
+    assert.ok(Math.abs(row.profit.mean - (row.cash.mean + row.goal.mean + row.majority.mean - report.ante)) < 1e-8);
+    assert.ok(row.profit.paired.every(Number.isFinite));
+  }
+});
