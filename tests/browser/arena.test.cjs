@@ -692,6 +692,19 @@ test('committed tier ratings satisfy the schema and report the measured rules', 
   }
   assert.deepEqual(ratings.lineups.beginner.map(bot => bot.strategy), [0, 2, 3]);
   assert.ok(ratings.heldOut.rows["Expert Hunt"]);
+  // The pre-registered confirmation decides Advanced on fresh seeds.
+  const confirmation = ratings.confirmation;
+  assert.deepEqual(confirmation.seeds, [940000, 945999]);
+  assert.deepEqual(confirmation.lineup, ['Strategist Hold', 'Strategist Press', 'Strategist Close']);
+  assert.deepEqual(ratings.lineups.advanced.map(bot => bot.name), confirmation.lineup);
+  for (const row of Object.values(confirmation.rows)) {
+    assert.deepEqual(Object.keys(row), ['profit','vsBest','vsHold']);
+    for (const values of Object.values(row)) {
+      assert.ok(values.every(Number.isFinite) && values[1] <= values[0] && values[0] <= values[2]);
+    }
+  }
+  assert.equal(confirmation.advancedPass,
+    confirmation.lineup.every(name => confirmation.rows[name].vsBest[1] > 0));
 });
 
 test('tier share restores measured opponents and old links retain their lineup', () => {
