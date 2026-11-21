@@ -410,8 +410,8 @@ const arenaTeaching = (() => {
   }
 
   function startTutorial() {
-    explicitLabPlay = false;
     marketModeSelect.value = "players";
+    for (const id of Object.keys(PPO_SEATS)) byId("opponent" + id).checked = false;
     if (step >= 0) return;
     if (game.running) playBtn.click();
     dismissPrompt();
@@ -421,7 +421,7 @@ const arenaTeaching = (() => {
     tutorial.hidden = false;
     [playBtn, pauseBtn, downloadBtn, playModeInput, watchModeInput, durationSelect, seedInput]
       .forEach((input) => { input.disabled = true; });
-    for (const name of BOT_NAMES) byId("opponent" + name).disabled = true;
+    for (const name of OPPONENT_IDS) byId("opponent" + name).disabled = true;
     restoreTutorial(0);
   }
 
@@ -433,7 +433,7 @@ const arenaTeaching = (() => {
     game.stop(false);
     [playModeInput, watchModeInput, durationSelect, seedInput]
       .forEach((input) => { input.disabled = false; });
-    for (const name of BOT_NAMES) byId("opponent" + name).disabled = false;
+    for (const name of OPPONENT_IDS) byId("opponent" + name).disabled = false;
     refreshModePreview();
     byId("learnBasics").focus();
     return true;
@@ -479,8 +479,8 @@ const arenaTeaching = (() => {
   }
 
   function startFrontRound(seed) {
-    explicitLabPlay = false;
     marketModeSelect.value = "players";
+    for (const id of Object.keys(PPO_SEATS)) byId("opponent" + id).checked = false;
     if (step >= 0) stopTutorial();
     else if (game.running) playBtn.click();
     playModeInput.checked = true;
@@ -598,8 +598,8 @@ const arenaTeaching = (() => {
   }
 
   function prepareLesson(id) {
-    explicitLabPlay = false;
     marketModeSelect.value = "players";
+    for (const id of Object.keys(PPO_SEATS)) byId("opponent" + id).checked = false;
     const lesson = BOT_LESSONS[id];
     if (step >= 0) stopTutorial();
     else if (game.running) playBtn.click();
@@ -730,12 +730,11 @@ const arenaTeaching = (() => {
 
   byId("coachReplay").addEventListener("click", () => {
     if (!game.revealGoal || !game.humanSeated) return;
-    const lineup = game.players.filter((player) => !player.isHuman).map((player) => player.name);
+    const lineup = game.players.filter((player) => !player.isHuman).map((player) => player.policyId || player.name);
     playModeInput.checked = true;
-    explicitLabPlay = game.marketMode === "lab";
     seedInput.value = game.seed;
     durationSelect.value = game.durationMs;
-    for (const name of BOT_NAMES) byId("opponent" + name).checked = lineup.includes(name);
+    for (const id of OPPONENT_IDS) byId("opponent" + id).checked = lineup.includes(id);
     refreshModePreview();
     playBtn.click();
   });

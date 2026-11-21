@@ -538,3 +538,5 @@ summary { cursor: pointer; padding: 0.8rem 0; color: var(--accent); }
 .rl-curves { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 .rl-curves article { min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem; }
 .rl-curves h4 { margin: 0; }
+
+.lineup-note { flex-basis: 100%; margin: 0; }

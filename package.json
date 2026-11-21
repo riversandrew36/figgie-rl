@@ -4,7 +4,8 @@
   "scripts": {
     "test": "node --test tests/browser/arena.test.cjs",
     "test:browser": "playwright test",
-    "build:pages": "python3 scripts/build_pages.py"
+    "build:pages": "python3 scripts/build_pages.py",
+    "eval:browser-policy": "node scripts/eval_browser_policy.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1"

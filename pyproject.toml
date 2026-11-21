@@ -55,6 +55,9 @@ py-modules = ["figgie_play"]
   "og-image.png",
   "rl_results.json",
   "figgie_rl_showcase.js",
+  "figgie_lab_policy.js",
+  "policies/ppo_goal_shown.js",
+  "policies/ppo_no_aids.js",
 ]
 
 [tool.pytest.ini_options]

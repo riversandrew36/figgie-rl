@@ -65,6 +65,11 @@
         <label><input id="opponentBanker" type="checkbox" name="opponent" value="Banker" checked /> Banker</label>
         <label><input id="opponentDetective" type="checkbox" name="opponent" value="Detective" checked /> Detective</label>
         <label><input id="opponentBluffer" type="checkbox" name="opponent" value="Bluffer" /> Bluffer</label>
+        <label><input id="opponentppo_goal_shown" type="checkbox" name="opponent" value="ppo_goal_shown" aria-describedby="ppoGoalNote" /> PPO · sees the goal</label>
+        <label><input id="opponentppo_no_aids" type="checkbox" name="opponent" value="ppo_no_aids" aria-describedby="ppoNoAidsNote" /> PPO · no aids</label>
+        <p class="small lineup-note" id="lineupHelp"></p>
+        <p class="small lineup-note" id="ppoGoalNote"><strong>PPO · sees the goal.</strong> Cheats on purpose: trained with the hidden goal revealed. It shows how much the goal is worth.</p>
+        <p class="small lineup-note" id="ppoNoAidsNote"><strong>PPO · no aids.</strong> Trained without hints. Near break-even in training and below the scripted baselines there.</p>
       </fieldset>
       <div class="controls">
         <label for="durationSelect">Round Length</label>
@@ -305,6 +310,7 @@
       <h3>Learning curves</h3>
       <div id="rlCurves" class="rl-curves"></div>
       <p id="rlProvenance" class="small"></p>
+      <div id="labBenchmark"></div>
       <p><a href="https://github.com/riversandrew36/figgie-rl/blob/main/docs/PROJECT_STATUS.md#strong-lineup-ladder-with-carried-weights--november-15-2026">Study results and limitations</a> ·
         <a href="https://github.com/riversandrew36/figgie-rl/blob/main/docs/RL_QUICKSTART.md">Run your first Python experiment</a></p>
     </section>
@@ -314,7 +320,7 @@
       <p>Start with the Python scripted styles, change a parameter, then benchmark against a saved PPO checkpoint on the same seeds. The quickstart includes a one-parameter experiment and explains how to avoid tuning on final-test data.</p>
       <p><a href="https://github.com/riversandrew36/figgie-rl">Explore the source on GitHub</a> · <a href="https://github.com/riversandrew36/figgie-rl/blob/main/CONTRIBUTING.md">Contribute an experiment</a></p>
       <details><summary>Simulation assumptions and scope</summary>
-        <p>The browser uses a separate JavaScript simulation. Player quotes mode has no outside book; Classic mode preserves the older drifting external quotes and probabilistic fills. The browser does not execute Python or trained PPO checkpoints. Seeds, mechanics, and results are not interchangeable between the implementations.</p>
+        <p>The browser uses a separate JavaScript simulation. Player quotes mode has no outside book; Classic mode preserves the older drifting external quotes and probabilistic fills. Lab runs exported PPO actors in JavaScript with 120 decisions per round, one every 500 ms in a 60-second round. Quotes expire after eight decisions. The browser uses its own deals, seeded order, and scripted bot ports.</p>
         <p>This is an independent educational implementation of Figgie, created by Jane Street. It is not affiliated with or endorsed by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> or <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">watch Jane Street’s gameplay video</a>.</p>
         <p>No accounts or analytics. Tracker totals, lesson progress and preferences are saved locally. No real money is involved.</p>
       </details>
@@ -326,7 +332,9 @@
   </main>
 
   <script type="application/json" id="rlShowcaseData">{"study":"strong_ladder_20261115","config_sha256":"58c5ae605c1f38a5720a87e328ebd2ef53a3ba0433b1a318450199bd303e6724","study_code_revision":"f8d83767285065d3499f2e3775d40f0152e27e36","evaluation_seeds":[5400000,5400199],"baselines":{"Hold":-6.633333333333334,"Bayesian":3.41,"Hunter":8.4,"Bluffer":7.36},"steps":[{"number":1,"name":"goal_shown","series":[{"seed":901,"points":[[0,-99.61799296157092],[40960,-7.777298255099192],[81920,-4.969562016671103],[122880,4.426414935399967],[163840,22.622683058094207],[204800,44.02920306583304]]},{"seed":902,"points":[[0,-62.174589312211594],[40960,-5.426998315436973],[81920,0.9040329214609488],[122880,10.914683557528502],[163840,26.394608832041605],[204800,46.78003615825035]]},{"seed":903,"points":[[0,-31.235984807148736],[40960,-4.968333333333334],[81920,-5.5796092873149465],[122880,6.055617341972958],[163840,17.177920450241967],[204800,47.60070809081598]]}],"final":[44.02920306583304,46.78003615825035,47.60070809081598],"mean":46.13664910496645},{"number":2,"name":"odds_only","series":[{"seed":901,"points":[[0,-11.779304270818507],[40960,-6.921850989612152],[81920,-3.574209833481193],[122880,-5.464065698295417],[163840,-4.216988364813606],[204800,-6.332490502324033]]},{"seed":902,"points":[[0,-3.451589138727184],[40960,-6.3368475831391935],[81920,-6.5228811373532745],[122880,-7.588542345557254],[163840,-5.162447270781132],[204800,-5.195208408815444]]},{"seed":903,"points":[[0,-12.955253701279094],[40960,-1.7427295474160944],[81920,-5.989281870721169],[122880,-9.305061022366973],[163840,-6.339595307524309],[204800,-5.361279843224175]]}],"final":[-6.332490502324033,-5.195208408815444,-5.361279843224175],"mean":-5.629659584787884},{"number":3,"name":"no_aids","series":[{"seed":901,"points":[[0,-5.856572460169017],[40960,-5.397157824703584],[81920,-2.93732980131566],[122880,-3.833233039716413],[163840,-2.6033466158380945],[204800,-0.11827971951097027]]},{"seed":902,"points":[[0,-6.15854698300725],[40960,-7.2677860399280885],[81920,-4.7908213231222065],[122880,-6.332107831606315],[163840,-5.437317576738269],[204800,-2.338730809875721]]},{"seed":903,"points":[[0,-5.719630430807521],[40960,-4.209585030758643],[81920,-4.858915779466639],[122880,-2.5182704856537965],[163840,1.146415820180009],[204800,-5.4124615932668965]]}],"final":[-0.11827971951097027,-2.338730809875721,-5.4124615932668965],"mean":-2.6231573742178624}]}</script>
+  <script type="application/json" id="labBenchmarkData">[{"name":"PPO · sees the goal","mean":"36.95","low":"30.17","high":"43.74"},{"name":"PPO · no aids","mean":"-4.53","low":"-6.87","high":"-2.18"},{"name":"Hold","mean":"-7.28","low":"-13.71","high":"-0.86"},{"name":"Hunter","mean":"2.56","low":"-5.50","high":"10.62"},{"name":"Banker","mean":"-4.37","low":"-10.81","high":"2.07"},{"name":"Detective","mean":"-7.05","low":"-13.75","high":"-0.35"},{"name":"Bluffer","mean":"2.77","low":"-4.76","high":"10.30"}]</script>
   <script src="figgie_rl_showcase.js" defer></script>
+  <script src="figgie_lab_policy.js"></script>
   <script src="figgie_arena.js"></script>
   <script src="figgie_lessons.js"></script>
 </body>

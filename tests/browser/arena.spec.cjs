@@ -451,7 +451,8 @@ test('research charts are accessible and the arena makes only same-origin reques
   await expect(research.locator('#rlProvenance')).toContainText('not a held-out final test');
   await expect(research.getByRole('img')).toHaveCount(4);
   await expect(research.locator('svg[aria-label]')).toHaveCount(4);
-  await expect(research.getByRole('table')).toHaveCount(4);
+  await expect(research.locator('table.sr-only')).toHaveCount(4);
+  await expect(research.locator('#labBenchmark table')).toContainText('PPO · no aids');
   for (const name of ['Hold', 'Bayesian', 'Hunter', 'Bluffer']) {
     await expect(research.locator('#rlLadder svg')).toContainText(name);
   }
@@ -465,4 +466,67 @@ test('research charts are accessible and the arena makes only same-origin reques
   const origin = new URL(page.url()).origin;
   expect(requests.filter((request) => new URL(request).origin !== origin)).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test('PPO seats load on selection, play Lab, and survive a shared link', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({width:375,height:812});
+  const requests = [];
+  const errors = [];
+  page.on('request', (request) => requests.push(request.url()));
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/figgie-rl/');
+  const weights = () => requests.filter((url) => url.includes('/policies/'));
+  expect(weights()).toEqual([]);
+  await page.locator('#opponentDetective').uncheck();
+  await page.locator('#opponentppo_no_aids').check();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
+  await expect(page.locator('#labMarketNote')).toContainText('quotes last 4 seconds');
+  await expect.poll(() => weights().map((url) => url.split('/').at(-1))).toEqual(['ppo_no_aids.js']);
+  await page.locator('#playBtn').click();
+  await expect(page.locator('#playBtn')).toHaveText('Stop');
+  await expect(page.locator('#botRows')).toContainText('PPO · no aids');
+  await page.locator('#pauseBtn').click();
+  await page.evaluate(() => { for(let step=0; step<15; step++) game.step(true); });
+  await page.locator('#marketGrid').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath('lab-play.png'), animations: 'disabled' });
+  await completeRound(page);
+  expect(await page.evaluate(() => game.tick)).toBe(120);
+  await expect(page.locator('#roundCoach')).toBeVisible();
+  await page.locator('#roundCoach').screenshot({ path: info.outputPath('lab-settlement.png') });
+  await page.locator('#shareBtn').click();
+  const link = await page.locator('#shareUrl').inputValue();
+  const url = new URL(link);
+  expect(url.searchParams.get('market')).toBe('lab');
+  expect(url.searchParams.get('opponents')).toBe('Hunter,Banker,ppo_no_aids');
+  await page.goto(link);
+  await expect(page.locator('#opponentppo_no_aids')).toBeChecked();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
+  await page.locator('#opponentppo_no_aids').uncheck();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('players');
+  await page.locator('#opponentppo_goal_shown').check();
+  await page.locator('#playBtn').click();
+  await expect(page.locator('#playBtn')).toHaveText('Stop');
+  await expect(page.locator('#goal')).toHaveText(/Hidden/);
+  await expect(page.locator('#botRows')).toContainText('PPO · sees the goal');
+  await expect(page.locator('#round-explanation')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(requests.filter((request) => new URL(request).origin !== url.origin)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('Watch Lab share preserves PPO seats and the selected schedule', async ({page}) => {
+  await page.goto('/figgie-rl/');
+  await page.locator('#watchModeInput').check();
+  await page.locator('#opponentppo_no_aids').check();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
+  await page.locator('#shareBtn').click();
+  const link = await page.locator('#shareUrl').inputValue();
+  await page.goto(link);
+  await expect(page.locator('#watchModeInput')).toBeChecked();
+  await expect(page.locator('#opponentppo_no_aids')).toBeChecked();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
+  await page.locator('#playBtn').click();
+  await expect(page.locator('#playBtn')).toHaveText('Stop');
+  await completeRound(page);
+  await expect(page.locator('#botRows')).toContainText('PPO · no aids');
 });

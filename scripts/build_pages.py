@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import shutil
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -9,11 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 def build(destination: Path) -> None:
     source = ROOT / "figgie_rl" / "arena"
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ("figgie_play.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js", "og-image.png",
-        "rl_results.json", "figgie_rl_showcase.js",
-    ):
-        target = "index.html" if name.endswith(".html") else name
-        shutil.copyfile(source / name, destination / target)
+    # Read the static manifest by path so this script also runs before package install.
+    names = runpy.run_path(str(source / "__init__.py"))["ARENA_ASSETS"]
+    for name in names:
+        target = destination / ("index.html" if name == "figgie_play.html" else name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source / name, target)
 
 
 if __name__ == "__main__":

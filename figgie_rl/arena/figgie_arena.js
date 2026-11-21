@@ -55,6 +55,11 @@ const SUITS = [
 const COLOR_PARTNER = { 0: 1, 1: 0, 2: 3, 3: 2 };
 // Playing styles mirror figgie_rl/agents/styles.py.
 const BOT_NAMES = ["Hunter", "Banker", "Detective", "Bluffer"];
+const PPO_SEATS = {
+  ppo_goal_shown: "PPO · sees the goal",
+  ppo_no_aids: "PPO · no aids",
+};
+const OPPONENT_IDS = [...BOT_NAMES, ...Object.keys(PPO_SEATS)];
 const BOT_STYLES = [
   "Trusts its hand and lifts offers to corner the goal suit.",
   "Quotes both sides around fair value and earns the spread.",
@@ -160,6 +165,7 @@ class FiggieViewerGame {
     this.players = specs.map((spec, idx) => ({
       name: spec.name,
       strategy: spec.strategy,
+      policyId: spec.policyId,
       style: spec.style || BOT_STYLES[spec.strategy] || "Human player",
       isHuman: Boolean(spec.isHuman),
       inventory: deal.inventories[idx],
@@ -178,7 +184,7 @@ class FiggieViewerGame {
 
   start(durationMs, seed, speed = 1, options = {}) {
     this.reset(durationMs, seed, options);
-    this.speed = this.humanSeated ? 1 : speed;
+    this.speed = this.humanSeated || this.marketMode === "lab" ? 1 : speed;
     this.clockStarted = Date.now();
     this.clockOffset = 0;
     this.running = true;
@@ -194,7 +200,7 @@ class FiggieViewerGame {
   }
 
   setPaused(paused) {
-    if (this.humanSeated && paused !== this.paused) {
+    if ((this.humanSeated || this.marketMode === "lab") && paused !== this.paused) {
       if (paused) this.clockOffset = Math.max(this.elapsedMs, this.clockOffset + Date.now() - this.clockStarted);
       else this.clockStarted = Date.now();
     }
@@ -247,7 +253,7 @@ class FiggieViewerGame {
     if (this.humanSeated && this.captureCoach !== false && globalThis.coachSnapshot) {
       globalThis.coachSnapshot(this, this.players.findIndex((player) => player.isHuman));
     }
-    this.elapsedMs = this.humanSeated && !force
+    this.elapsedMs = (this.humanSeated || this.marketMode === "lab") && !force
       ? this.clockOffset + Date.now() - this.clockStarted : this.elapsedMs + this.tickMs;
     render();
 
@@ -260,7 +266,7 @@ class FiggieViewerGame {
   // Learner observations are taken before ageing; actions execute in rotated order.
   runLabTurn(scriptedActions = null) {
     const decisions = scriptedActions || this.players.map((player, seat) =>
-      player.isHuman ? this.queuedHumanAction : this.learnedDecision?.(seat));
+      player.isHuman ? this.queuedHumanAction : player.policyId ? labPolicyAction(this, seat, player.policyId) : null);
     this.queuedHumanAction = null;
     this.ageAndExpireQuotes();
     for (let offset = 0; offset < this.players.length; offset += 1) {
@@ -1184,7 +1190,7 @@ function goalSuitPosterior(hand) {
 
 const game = new FiggieViewerGame();
 const STRENGTH_STORAGE_KEY = "figgie_strength_tracker_v2";
-const TRACKER_NAMES = [...BOT_NAMES, "You"];
+const TRACKER_NAMES = [...BOT_NAMES, "You", ...Object.values(PPO_SEATS)];
 
 function createDefaultStrengthTracker() {
   return {
@@ -1226,7 +1232,7 @@ function loadStrengthTracker() {
         rating: Number.isFinite(bot?.rating) ? bot.rating : 1000,
         wins: Number.isFinite(bot?.wins) ? bot.wins : 0,
         roundsPlayed: Number.isFinite(bot?.roundsPlayed)
-          ? bot.roundsPlayed : (name === "You" ? 0 : parsed.rounds),
+          ? bot.roundsPlayed : (BOT_NAMES.includes(name) ? parsed.rounds : 0),
         totalBankroll: Number.isFinite(bot?.totalBankroll) ? bot.totalBankroll : 0,
         lastBankroll: Number.isFinite(bot?.lastBankroll) ? bot.lastBankroll : 0,
         history: Array.isArray(bot?.history) && bot.history.length > 0
@@ -1348,17 +1354,18 @@ function isPlayMode() {
 }
 
 function selectedOpponents() {
-  return BOT_NAMES.filter((name) => document.getElementById(`opponent${name}`)?.checked);
+  return OPPONENT_IDS.filter((name) => document.getElementById(`opponent${name}`)?.checked);
 }
 
 function playerSpecsForMode(playMode = isPlayMode()) {
-  if (!playMode) return BOT_NAMES.map((name, strategy) => ({ name, strategy }));
   const opponents = selectedOpponents();
-  if (opponents.length !== 3) return null;
-  return [
-    { name: "You", strategy: -1, style: "Human player", isHuman: true },
-    ...opponents.map((name) => ({ name, strategy: BOT_NAMES.indexOf(name) })),
-  ];
+  const hasPpo = opponents.some((id) => Object.hasOwn(PPO_SEATS, id));
+  if (!playMode && !hasPpo) return BOT_NAMES.map((name, strategy) => ({ name, strategy }));
+  if (opponents.length !== (playMode ? 3 : 4)) return null;
+  const specs = opponents.map((id) => Object.hasOwn(PPO_SEATS, id)
+    ? { name: PPO_SEATS[id], policyId: id, style: "Trained MaskablePPO policy" }
+    : { name: id, strategy: BOT_NAMES.indexOf(id) });
+  return playMode ? [{ name: "You", strategy: -1, style: "Human player", isHuman: true }, ...specs] : specs;
 }
 
 function clearExplanation() {
@@ -1370,9 +1377,9 @@ function clearExplanation() {
   }
 }
 
-let explicitLabPlay = false;
 function selectedMarket(playMode) {
-  if (playMode) return explicitLabPlay ? "lab" : "players";
+  if (selectedOpponents().some((id) => Object.hasOwn(PPO_SEATS, id))) return "lab";
+  if (playMode) return "players";
   return MARKET_MODES.includes(marketModeSelect?.value) ? marketModeSelect.value : "players";
 }
 
@@ -1380,16 +1387,22 @@ function refreshModePreview() {
   if (game.running) return;
   const playMode = isPlayMode();
   const playerSpecs = playerSpecsForMode(playMode);
-  const validLineup = !playMode || playerSpecs !== null;
+  const validLineup = playerSpecs !== null;
   const marketMode = selectedMarket(playMode);
   game.marketMode = marketMode;
   if (marketModeSelect) {
     marketModeSelect.value = marketMode;
     marketModeSelect.disabled = playMode;
   }
-  if (opponentPickerEl) opponentPickerEl.hidden = !playMode;
+  const pickedPolicies = selectedOpponents().filter((id) => Object.hasOwn(PPO_SEATS, id));
+  if (opponentPickerEl) opponentPickerEl.hidden = false;
+  document.getElementById("lineupHelp").textContent = playMode
+    ? "Choose three opponents." : "Watch uses four scripted styles by default. For PPO, check exactly four seats.";
+  for (const id of pickedPolicies) {
+    loadLabPolicy(id).catch(() => { summaryEl.textContent = "Could not load a selected PPO policy. Try Play to retry."; });
+  }
   if (keyboardHelpEl) keyboardHelpEl.hidden = !playMode;
-  speedSelect.disabled = playMode;
+  speedSelect.disabled = playMode || marketMode === "lab";
   playBtn.disabled = !validLineup;
   downloadBtn.disabled = true;
   if (validLineup) {
@@ -1400,8 +1413,9 @@ function refreshModePreview() {
     });
     if (humanActionHelpEl) humanActionHelpEl.textContent = "";
   } else {
-    game.humanSeated = true;
-    if (humanActionHelpEl) humanActionHelpEl.textContent = "Select exactly three opponents to start a Play-mode round.";
+    game.humanSeated = playMode;
+    if (humanActionHelpEl) humanActionHelpEl.textContent =
+      playMode ? "Select exactly three opponents to play." : "Select exactly four seats to watch with PPO.";
   }
   clearExplanation();
   render();
@@ -1590,7 +1604,7 @@ function onRoundEnded() {
   playModeInput.disabled = false;
   watchModeInput.disabled = false;
   document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = false; });
-  speedSelect.disabled = isPlayMode();
+  speedSelect.disabled = isPlayMode() || game.marketMode === "lab";
   pauseBtn.disabled = true;
   pauseBtn.textContent = isPlayMode() ? "Practice pause" : "Pause";
   stepBtn.disabled = true;
@@ -1615,7 +1629,7 @@ playBtn.addEventListener("click", () => {
     playModeInput.disabled = false;
     watchModeInput.disabled = false;
     document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = false; });
-    speedSelect.disabled = isPlayMode();
+    speedSelect.disabled = isPlayMode() || game.marketMode === "lab";
     pauseBtn.disabled = true;
     stepBtn.disabled = true;
     downloadBtn.disabled = game.humanSeated || game.roundLog.length === 0;
@@ -1634,6 +1648,17 @@ playBtn.addEventListener("click", () => {
     return;
   }
   const marketMode = selectedMarket(playMode);
+  const pending = playerSpecs.filter((spec) => spec.policyId && !globalThis.figgiePolicies?.[spec.policyId]);
+  if (pending.length) {
+    const lineup = selectedOpponents().join(",");
+    summaryEl.textContent = "Loading selected PPO policies…";
+    Promise.all(pending.map(({ policyId }) => loadLabPolicy(policyId)))
+      .then(() => {
+        if (!game.running && isPlayMode() === playMode && selectedOpponents().join(",") === lineup) playBtn.click();
+      })
+      .catch(() => { summaryEl.textContent = "Could not load a selected PPO policy. Try Play to retry."; });
+    return;
+  }
   seedInput.value = selectedSeed;
   durationSelect.value = selectedMs;
   clearExplanation();
@@ -1644,7 +1669,7 @@ playBtn.addEventListener("click", () => {
   playModeInput.disabled = true;
   watchModeInput.disabled = true;
   document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => { input.disabled = true; });
-  speedSelect.disabled = playMode;
+  speedSelect.disabled = playMode || marketMode === "lab";
   playBtn.textContent = "Stop";
   pauseBtn.textContent = playMode ? "Practice pause" : "Pause";
   pauseBtn.disabled = false;
@@ -1669,7 +1694,7 @@ stepBtn.addEventListener("click", () => {
 });
 
 speedSelect.addEventListener("change", () => {
-  if (game.humanSeated) return;
+  if (game.humanSeated || game.marketMode === "lab") return;
   game.speed = Number(speedSelect.value);
   if (game.running && !game.paused) {
     game.schedule();
@@ -1679,7 +1704,13 @@ speedSelect.addEventListener("change", () => {
 watchModeInput.addEventListener("change", refreshModePreview);
 playModeInput.addEventListener("change", refreshModePreview);
 document.querySelectorAll?.('input[name="opponent"]')?.forEach((input) => {
-  input.addEventListener("change", refreshModePreview);
+  input.addEventListener("change", () => {
+    if (!selectedOpponents().some((id) => Object.hasOwn(PPO_SEATS, id)) &&
+        Object.keys(PPO_SEATS).some((id) => input.id === "opponent" + id)) {
+      marketModeSelect.value = "players";
+    }
+    refreshModePreview();
+  });
 });
 
 marketGridEl.addEventListener("input", (event) => {
@@ -1774,11 +1805,11 @@ if (playModeInput && watchModeInput) {
   watchModeInput.checked = !playModeInput.checked;
 }
 const incomingOpponents = new Set(initialScenario.opponents);
-if (initialScenario.arenaMode === "play" && incomingOpponents.size === 3
-  && [...incomingOpponents].every((name) => BOT_NAMES.includes(name))) {
-  for (const name of BOT_NAMES) document.getElementById("opponent" + name).checked = incomingOpponents.has(name);
+if (incomingOpponents.size === (initialScenario.arenaMode === "play" ? 3 : 4)
+  && [...incomingOpponents].every((id) => OPPONENT_IDS.includes(id)
+    && (!Object.hasOwn(PPO_SEATS, id) || initialScenario.marketMode === "lab"))) {
+  for (const id of OPPONENT_IDS) document.getElementById("opponent" + id).checked = incomingOpponents.has(id);
 }
-explicitLabPlay = initialScenario.arenaMode === "play" && initialScenario.marketMode === "lab";
 if (marketModeSelect) marketModeSelect.value = initialScenario.marketMode;
 game.reset(initialScenario.durationMs, initialScenario.seed, { marketMode: initialScenario.marketMode });
 if (compatibilityNoteEl) {
@@ -1890,12 +1921,11 @@ function scenarioUrl() {
   url.searchParams.set("duration", scenario.durationMs);
   url.searchParams.set("market", game.marketMode);
   url.searchParams.set("version", SIMULATION_VERSION);
-  if (game.humanSeated) {
-    url.searchParams.set("mode", "play");
-    const opponents = game.players.filter((player) => !player.isHuman).map((player) => player.name);
-    if (opponents.length === 3 && opponents.join(",") !== BOT_NAMES.slice(0, 3).join(",")) {
-      url.searchParams.set("opponents", opponents.join(","));
-    }
+  if (game.humanSeated) url.searchParams.set("mode", "play");
+  const opponents = game.players.filter((player) => !player.isHuman).map((player) => player.policyId || player.name);
+  if ((game.humanSeated && opponents.length === 3 && opponents.join(",") !== BOT_NAMES.slice(0, 3).join(","))
+    || (!game.humanSeated && opponents.some((id) => Object.hasOwn(PPO_SEATS, id)))) {
+    url.searchParams.set("opponents", opponents.join(","));
   }
   return url.href;
 }
