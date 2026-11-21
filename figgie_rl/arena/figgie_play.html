@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="table-view">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,10 +19,9 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%23062622'/%3E%3Cg font-family='serif' font-size='25' text-anchor='middle'%3E%3Ctext x='19' y='28' fill='%23ffd166'%3E%E2%99%A0%3C/text%3E%3Ctext x='45' y='28' fill='%23ff8f7b'%3E%E2%99%A5%3C/text%3E%3Ctext x='19' y='54' fill='%23ffd166'%3E%E2%99%A3%3C/text%3E%3Ctext x='45' y='54' fill='%23ff8f7b'%3E%E2%99%A6%3C/text%3E%3C/g%3E%3C/svg%3E" />
   <link rel="stylesheet" href="figgie_arena.css" />
   <link rel="stylesheet" href="figgie_table.css" />
-  <script>if (/\/play(\.html)?$/.test(location.pathname) || new URLSearchParams(location.search).get("view") === "table") document.documentElement.classList.add("table-view");</script>
 </head>
 <body>
-  <a class="skip-link" href="#arena">Skip to arena</a>
+  <a class="skip-link" href="#pokerTable">Skip to the table</a>
   <main class="shell">
     <header class="intro panel">
       <div class="hero-pitch">
@@ -32,7 +31,6 @@
           <button id="playNow" type="button">Play now</button>
           <button id="learnBasics" class="reset-btn" type="button">Learn the basics (3 min)</button>
           <a href="#reinforcement-learning">Train an agent</a>
-          <a id="openTable" class="table-link" href="?view=table" target="_blank" rel="noopener">Open the table ↗</a>
         </nav>
         <p id="welcomeBack" class="small" hidden></p>
       </div>
@@ -148,9 +146,8 @@
       </div>
     </section>
 
-    <section id="pokerTable" class="poker-table" aria-label="Figgie table" hidden>
+    <section id="pokerTable" class="poker-table" aria-label="Figgie table" tabindex="-1">
       <div class="table-status" aria-live="polite">
-        <a class="table-lobby" data-lobby-link href="./">← Lobby</a>
         <span id="tableTimer" class="table-chip table-timer">00:00</span>
         <span id="tablePot" class="table-chip">Pot $200</span>
         <span id="tableGoal" class="table-chip">Goal hidden</span>
@@ -166,7 +163,8 @@
         <section id="seatRight" class="seat seat-right" aria-live="off"></section>
         <section id="seatBottom" class="seat seat-bottom" aria-live="off"></section>
       </div>
-      <div id="tableHand" class="table-hand" aria-label="Your hand: choose a suit"></div>
+      <h3 id="tableHandTitle" class="table-hand-title" hidden>Your hand</h3>
+      <div id="tableHand" class="table-hand" aria-labelledby="tableHandTitle"></div>
       <div id="tableActions" class="table-actions" hidden>
         <span id="tableActionSuit" class="table-action-suit"></span>
         <button type="button" data-table-action="buy">Buy</button>
@@ -184,7 +182,7 @@
       </div>
       <p class="small table-credit">Figgie was created by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>. Independent educational project, not affiliated with or endorsed by Jane Street.</p>
     </section>
-    <section id="tableFeedPanel" class="panel table-feed-panel" hidden aria-labelledby="tableFeedTitle">
+    <section id="tableFeedPanel" class="panel table-feed-panel" aria-labelledby="tableFeedTitle">
       <h2 id="tableFeedTitle" class="section-title">Trades</h2>
       <ol id="tableFeed" class="table-feed" aria-live="polite" aria-relevant="additions"></ol>
     </section>

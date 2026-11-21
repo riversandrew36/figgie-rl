@@ -1680,7 +1680,7 @@ playBtn.addEventListener("click", () => {
   game.start(selectedMs, selectedSeed, selectedSpeed, { marketMode, humanSeated: playMode, playerSpecs });
   globalThis.figgieTeaching?.roundStarted();
   render();
-  if (playMode) marketGridEl.focus();
+  if (playMode) (document.querySelector?.("#tableHand [aria-pressed=\"true\"]") || marketGridEl).focus();
 });
 
 pauseBtn.addEventListener("click", () => {

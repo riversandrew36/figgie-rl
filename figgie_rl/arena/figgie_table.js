@@ -1,32 +1,16 @@
-// Poker-table view of the arena. It is a presentation layer only: it reads the
-// shared `game` state and sends your actions through `performHumanAction`, so
-// rules, validation and seeded play are identical to the classic arena layout.
-// The view turns on at play.html (Pages) or with ?view=table (local file).
+// The table is the arena. It is a presentation layer only: it reads the shared
+// `game` state and sends your actions through `performHumanAction`, so rules,
+// validation and seeded play are unchanged. The classic market board stays in
+// the page, hidden, because performHumanAction reads its prices and buttons.
 (() => {
-  const url = new URL(window.location.href);
-  const tableView = /\/play(\.html)?$/.test(url.pathname) || url.searchParams.get("view") === "table";
-  if (!tableView) return;
-
-  document.documentElement.classList.add("table-view");
   const byId = (id) => document.getElementById(id);
   const tableEl = byId("pokerTable");
-  const shell = document.querySelector("main.shell");
-  if (!tableEl || !shell) return;
-  tableEl.hidden = false;
-  const feedPanel = byId("tableFeedPanel");
-  if (feedPanel) feedPanel.hidden = false;
+  const arenaEl = byId("arena");
+  if (!tableEl || !arenaEl) return;
 
-  // The lobby is this same page without the table switch.
-  const lobby = new URL(url.href);
-  lobby.hash = "";
-  lobby.searchParams.delete("view");
-  if (/\/play(\.html)?$/.test(lobby.pathname)) lobby.pathname = lobby.pathname.replace(/play(\.html)?$/, "");
-  for (const link of tableEl.querySelectorAll("[data-lobby-link]")) link.href = lobby.href;
-  const lessonLink = byId("tutorialLesson");
-  if (lessonLink) lessonLink.href = `${lobby.href.split("#")[0]}#lessons`;
-
-  // Arrange the existing panels around the table. Moving nodes keeps their ids
-  // and listeners, so the teaching, coach and daily-deal code keeps working.
+  // Arrange the panels around the table where the arena used to be. Moving
+  // nodes keeps their ids and listeners, so the teaching, coach and daily-deal
+  // code keeps working.
   const layout = document.createElement("div");
   layout.className = "table-layout";
   const mainColumn = document.createElement("div");
@@ -34,9 +18,9 @@
   const side = document.createElement("aside");
   side.className = "table-side";
   side.setAttribute("aria-label", "Round tools");
-  shell.insertBefore(layout, shell.firstChild);
+  arenaEl.before(layout);
   layout.append(mainColumn, side);
-  for (const id of ["arena", "pokerTable", "dailyResult", "roundCoach", "round-explanation"]) {
+  for (const id of ["pokerTable", "arena", "dailyResult", "roundCoach", "round-explanation"]) {
     const node = byId(id);
     if (node) mainColumn.append(node);
   }
@@ -94,7 +78,7 @@
     const stats = hidden
       ? `${cards} cards · ${player.trades} trades`
       : `${money(player.cash)} · ${cards} cards · ${player.trades} trades`;
-    const hand = !hidden && !player.isHuman
+    const hand = !hidden
       ? `<div class="seat-hand">${SUITS.map((_, suit) => `<span>${suitMark(suit)}${player.inventory[suit]}</span>`).join("")}</div>`
       : "";
     return `
@@ -257,6 +241,13 @@
       handEl.dataset.markup = hand;
     }
     handEl.hidden = seat < 0;
+    const handTitle = byId("tableHandTitle");
+    handTitle.hidden = seat < 0;
+    if (seat >= 0) {
+      const held = game.players[seat].inventory;
+      const text = `Your hand · ${held.reduce((sum, count) => sum + count, 0)} cards — tap a suit to trade it`;
+      if (handTitle.textContent !== text) handTitle.textContent = text;
+    }
     if (focusedSuit !== undefined && focusedIn) {
       const container = focusedIn === "book" ? bookEl : handEl;
       container.querySelector(`[data-table-suit="${focusedSuit}"]`)?.focus();

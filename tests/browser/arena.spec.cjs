@@ -17,14 +17,14 @@ test('learner can control, understand, export and repeat a round without an acco
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/figgie-rl/?seed=23&duration=30000');
   await expect(page).toHaveTitle(/Figgie Learning Lab/);
-  await expect(page.locator('.play-links').getByRole('link', { name: /New to Figgie\? Watch Jane Street’s video/ })).toBeVisible();
-  await expect(page.locator('.play-links').getByRole('link', { name: 'Play the official game' })).toBeVisible();
+  await expect(page.locator('.table-credit').getByRole('link', { name: /Watch Jane Street’s gameplay video/ })).toBeVisible();
+  await expect(page.locator('.table-credit').getByRole('link', { name: 'Play the official game' })).toBeVisible();
   await expect(page.locator('.attribution').getByRole('link', { name: 'Play the official game' })).toBeVisible();
   await expect(page.locator('.attribution').first()).toContainText('not affiliated with or endorsed by Jane Street');
   await expect(page.locator('details[open]:not(#readToggle)')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('landing.png'), animations: 'disabled' });
   await expect(page.locator('#seedInput')).toHaveValue('23');
-  await expect(page.locator('#status')).toContainText('Ready');
+  await expect(page.locator('#tableMajority')).toHaveText('Ready');
   await page.waitForTimeout(350);
   expect(await page.evaluate(() => game.tick)).toBe(0);
   await page.locator('#playBtn').click();
@@ -34,7 +34,7 @@ test('learner can control, understand, export and repeat a round without an acco
   expect(await page.evaluate(() => game.tick)).toBe(before + 1);
   await page.locator('#speedSelect').selectOption('8');
   await page.locator('#pauseBtn').click();
-  await expect(page.locator('#status')).toContainText('Running');
+  await expect(page.locator('#tableMajority')).toHaveText('Trading');
   await page.locator('#pauseBtn').click();
   await completeRound(page);
   await expect(page.locator('#settlementExplanation')).toContainText('Highest profit:');
@@ -89,7 +89,7 @@ test('share links use clipboard when available and provide selectable fallback',
   await expect(page.locator('#seedInput')).toHaveValue('83');
   await expect(page.locator('#durationSelect')).toHaveValue('60000');
   await expect(page.locator('#marketModeSelect')).toHaveValue('players');
-  await expect(page.locator('#status')).toContainText('Ready');
+  await expect(page.locator('#tableMajority')).toHaveText('Ready');
 });
 
 test('Play mode supports backed quotes, crossing trades, buy and sell, private hands and settlement', async ({ page }) => {
@@ -120,35 +120,40 @@ test('Play mode supports backed quotes, crossing trades, buy and sell, private h
     render();
   });
 
-  await page.locator('.human-price[data-suit="0"]').fill('5');
-  await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
-  await expect(page.locator('#status')).toContainText('You bid $5 on Spades');
+  await page.locator('#tableHand [data-table-suit="0"]').click();
+  await page.locator('#tablePrice').fill('5');
+  await page.locator('#tablePrice').dispatchEvent('change');
+  await page.locator('[data-table-action="quote_bid"]').click();
+  await expect(page.locator('#tableActionHelp')).toContainText('You bid $5 on Spades');
+  await expect(page.locator('#seatBottom .seat-quotes')).toContainText('Bid');
   await page.evaluate(() => {
     game.applyAction(2, { kind: 'quote_bid', suit: 1, price: 4 });
     game.applyAction(3, { kind: 'quote_ask', suit: 2, price: 30 });
     game.applyAction(1, { kind: 'quote_ask', suit: 0, price: 4 });
     render();
   });
-  await expect(page.locator('#status')).toContainText("traded with You's bid at $5");
+  await expect(page.locator('#tableActionHelp')).toContainText('traded with Your bid at $5');
   expect(await page.evaluate(() => game.roundLog[0].price)).toBe(5);
   expect(await page.evaluate(() => game.players.some((p) => p.bidQuotes.some(Number.isFinite) || p.askQuotes.some(Number.isFinite)))).toBe(false);
 
   await page.evaluate(() => { game.applyAction(2, { kind: 'quote_ask', suit: 1, price: 6 }); render(); });
-  await page.locator('[data-human-action="buy"][data-suit="1"]').click();
-  await expect(page.locator('#status')).toContainText('You bought Clubs from Banker at $6');
+  await page.locator('#tableHand [data-table-suit="1"]').click();
+  await page.locator('[data-table-action="buy"]').click();
+  await expect(page.locator('#tableActionHelp')).toContainText('You bought Clubs from Banker at $6');
   await page.evaluate(() => { game.applyAction(3, { kind: 'quote_bid', suit: 1, price: 4 }); render(); });
-  await page.locator('[data-human-action="sell"][data-suit="1"]').click();
-  await expect(page.locator('#status')).toContainText('You sold Clubs to Detective at $4');
+  await page.locator('[data-table-action="sell"]').click();
+  await expect(page.locator('#tableActionHelp')).toContainText('You sold Clubs to Detective at $4');
   expect(await page.evaluate(() => game.roundLog.length)).toBe(3);
-  await expect(page.locator('#goal')).toContainText('Hidden');
+  await expect(page.locator('#tableGoal')).toHaveText('Goal hidden');
   await expect(page.locator('#round-explanation')).toBeHidden();
   await expect(page.locator('#beliefRows li')).toHaveCount(0);
-  expect(await page.locator('#botRows').textContent()).not.toContain('2 / 4 / 2 / 2');
-  await expect(page.locator('#botRows')).toContainText('9 cards');
-  await expect(page.locator('.your-card-count').first()).toContainText('Your cards:');
+  for (const seat of ['#seatLeft', '#seatTop', '#seatRight']) await expect(page.locator(`${seat} .seat-hand`)).toHaveCount(0);
+  await expect(page.locator('#pokerTable .felt')).toContainText('9 cards');
+  await expect(page.locator('#seatBottom .seat-hand')).toContainText('♠');
+  await expect(page.locator('#tableHand .hand-count')).toHaveText(['4', '3', '2', '2']);
   if (test.info().project.name === 'mobile') {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-    const undersized = await page.locator('.human-action-grid button').evaluateAll((buttons) =>
+    const undersized = await page.locator('#tableActions button').evaluateAll((buttons) =>
       buttons.filter((button) => button.getBoundingClientRect().height < 44).map((button) => button.textContent));
     expect(undersized).toEqual([]);
   }
@@ -196,7 +201,7 @@ test('keyboard, blocked storage, invalid URLs and assets work under a repository
   await expect(page.locator('#seedInput')).toHaveValue('7');
   await expect(page.locator('#durationSelect')).toHaveValue('30000');
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Skip to arena' })).toBeFocused();
+  await expect(page.getByRole('link', { name: 'Skip to the table' })).toBeFocused();
   await page.locator('#playBtn').focus();
   await page.keyboard.press('Enter');
   await completeRound(page);
@@ -223,16 +228,16 @@ test('guided round teaches crossing and settlement', async ({ page }, info) => {
   await answerTutorial(page, 1);
   await tutorialStep(page, 2);
   await answerTutorial(page, 0);
-  await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
+  await page.locator('[data-table-action="quote_bid"]').click();
   await tutorialStep(page, 4);
-  await expect(page.locator('#goal')).toContainText('Hidden');
+  await expect(page.locator('#tableGoal')).toHaveText('Goal hidden');
   expect(await page.evaluate(() => [game.roundLog[0].price, game.bestBid(1).buyer])).toEqual([8, null]);
   await page.locator('#tutorial').screenshot({ path: info.outputPath('tutorial-step-4.png') });
   await page.locator('#tutorialBack').click();
   await tutorialStep(page, 3);
-  await page.locator('[data-human-action="quote_bid"][data-suit="0"]').click();
+  await page.locator('[data-table-action="quote_bid"]').click();
   await answerTutorial(page, 1);
-  await page.locator('[data-human-action="quote_ask"][data-suit="2"]').click();
+  await page.locator('[data-table-action="quote_ask"]').click();
   await tutorialStep(page, 6);
   await page.locator('#yourRead').screenshot({ path: info.outputPath('your-read.png') });
   await answerTutorial(page, 0);
@@ -320,7 +325,8 @@ test('Play coach reviews a seeded trade, shares and replays the deal', async ({ 
       game.applyAction(2, {kind: 'quote_ask', suit: 3, price: 8});
       render();
     });
-    await page.locator('[data-human-action="buy"][data-suit="3"]').click();
+    await page.locator('#tableHand [data-table-suit="3"]').click();
+    await page.locator('[data-table-action="buy"]').click();
   }
   await expect(page.locator('#roundCoach')).toBeHidden();
   await completeRound(page);
@@ -378,7 +384,7 @@ test('front page fits credit and daily card and starts a round in one click', as
   await page.locator('#playNow').click();
   expect(await page.evaluate(() => [game.running, game.durationMs, game.players.map(p => p.name)]))
     .toEqual([true, 60000, ['You', 'Hunter', 'Banker', 'Detective']]);
-  await expect(page.locator('#marketGrid')).toBeInViewport();
+  await expect(page.locator('#pokerTable')).toBeInViewport();
 });
 
 test('daily deal records one scored result, shares it, then becomes practice', async ({ page }, info) => {
@@ -484,10 +490,10 @@ test('PPO seats load on selection, play Lab, and survive a shared link', async (
   await expect.poll(() => weights().map((url) => url.split('/').at(-1))).toEqual(['ppo_no_aids.js']);
   await page.locator('#playBtn').click();
   await expect(page.locator('#playBtn')).toHaveText('Stop');
-  await expect(page.locator('#botRows')).toContainText('PPO · no aids');
+  await expect(page.locator('#pokerTable .felt')).toContainText('PPO · no aids');
   await page.locator('#pauseBtn').click();
   await page.evaluate(() => { for(let step=0; step<15; step++) game.step(true); });
-  await page.locator('#marketGrid').scrollIntoViewIfNeeded();
+  await page.locator('#pokerTable').scrollIntoViewIfNeeded();
   await page.screenshot({ path: info.outputPath('lab-play.png'), animations: 'disabled' });
   await completeRound(page);
   expect(await page.evaluate(() => game.tick)).toBe(120);
@@ -506,8 +512,8 @@ test('PPO seats load on selection, play Lab, and survive a shared link', async (
   await page.locator('#opponentppo_goal_shown').check();
   await page.locator('#playBtn').click();
   await expect(page.locator('#playBtn')).toHaveText('Stop');
-  await expect(page.locator('#goal')).toHaveText(/Hidden/);
-  await expect(page.locator('#botRows')).toContainText('PPO · sees the goal');
+  await expect(page.locator('#tableGoal')).toHaveText('Goal hidden');
+  await expect(page.locator('#pokerTable .felt')).toContainText('PPO · sees the goal');
   await expect(page.locator('#round-explanation')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(requests.filter((request) => new URL(request).origin !== url.origin)).toEqual([]);
@@ -528,7 +534,7 @@ test('Watch Lab share preserves PPO seats and the selected schedule', async ({pa
   await page.locator('#playBtn').click();
   await expect(page.locator('#playBtn')).toHaveText('Stop');
   await completeRound(page);
-  await expect(page.locator('#botRows')).toContainText('PPO · no aids');
+  await expect(page.locator('#pokerTable .felt')).toContainText('PPO · no aids');
 });
 
 test('table view seats you with three bots, trades from the action bar and settles at the table', async ({ page }, info) => {
@@ -537,15 +543,14 @@ test('table view seats you with three bots, trades from the action bar and settl
   const errors = [];
   page.on('request', (request) => requests.push(request.url()));
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/figgie-rl/');
-  await expect(page.locator('#openTable')).toHaveAttribute('href', '?view=table');
-  await page.goto('/figgie-rl/?view=table&seed=23&duration=30000&market=players&version=2.0.0&mode=play');
+  await page.goto('/figgie-rl/?seed=23&duration=30000&market=players&version=2.0.0&mode=play');
   const table = page.locator('#pokerTable');
   await expect(table).toBeVisible();
-  await expect(page.locator('#lessons')).toBeHidden();
+  await expect(page.locator('#marketGrid')).toBeHidden();
+  await expect(page.locator('#botRows')).toBeHidden();
+  await expect(page.locator('#lessons')).toBeVisible();
   await expect(table.locator('.table-credit a[href="https://www.figgie.com/"]')).toBeVisible();
   await expect(table.locator('.table-credit a[href^="https://www.youtube.com/"]')).toBeVisible();
-  await expect(table.locator('.table-lobby')).toHaveAttribute('href', /\/figgie-rl\/\?seed=23&duration=30000&market=players&version=2.0.0&mode=play$/);
 
   await page.locator('#tableCenter').getByRole('button', { name: 'Deal me in' }).click();
   await expect(page.locator('#tableCenter')).toBeHidden();
