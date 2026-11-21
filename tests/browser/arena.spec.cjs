@@ -563,6 +563,17 @@ test('table view seats you with three bots, trades from the action bar and settl
   }
   await expect(page.locator('#tableGoal')).toHaveText('Goal hidden');
   await expect(page.locator('#tableHand .hand-card')).toHaveCount(4);
+  const held = await page.evaluate(() => game.players[humanPlayerIndex()].inventory);
+  await expect(page.locator('#tableFan .fan-card')).toHaveCount(held.reduce((sum, count) => sum + count, 0));
+  for (const [suit, count] of held.entries()) {
+    await expect(page.locator(`#tableFan .fan-card[data-table-suit="${suit}"]`)).toHaveCount(count);
+  }
+  const firstClub = page.locator('#tableFan .fan-card[data-table-suit="1"]').first();
+  if (held[1] > 0) {
+    await firstClub.click();
+    await expect(page.locator('#tableActionSuit')).toContainText('Clubs');
+    await expect(firstClub).toHaveClass(/selected/);
+  }
 
   await page.locator('#tableHand [data-table-suit="1"]').click();
   await expect(page.locator('#tableActionSuit')).toContainText('Clubs');

@@ -35,6 +35,7 @@
   const bookEl = byId("tableBook");
   const centerEl = byId("tableCenter");
   const handEl = byId("tableHand");
+  const fanEl = byId("tableFan");
   const actionsEl = byId("tableActions");
   const feedEl = byId("tableFeed");
   const priceInput = byId("tablePrice");
@@ -150,6 +151,21 @@
     }).join("");
   }
 
+  // Your cards fanned out like a real hand, grouped by suit. The suit buttons
+  // below carry the same counts for screen readers, so the fan is decorative.
+  function fanMarkup(seat) {
+    if (seat < 0) return "";
+    const held = game.players[seat].inventory;
+    const cards = [];
+    held.forEach((count, suit) => {
+      const classes = `fan-card ${RED.has(suit) ? "suit-red" : "suit-black"}${suit === selectedSuitIdx ? " selected" : ""}${game.revealGoal && game.goalSuitIdx === suit ? " goal" : ""}`;
+      for (let card = 0; card < count; card += 1) {
+        cards.push(`<span class="${classes}" data-table-suit="${suit}"><span class="fan-corner">${SUITS[suit].symbol}</span><span class="fan-pip">${SUITS[suit].symbol}</span></span>`);
+      }
+    });
+    return `<div class="fan-row" style="--gaps:${Math.max(1, cards.length - 1)}">${cards.join("")}</div>`;
+  }
+
   function hiddenButton(kind, suit) {
     return document.querySelector(`#marketGrid [data-human-action="${kind}"][data-suit="${suit}"]`);
   }
@@ -241,6 +257,12 @@
       handEl.dataset.markup = hand;
     }
     handEl.hidden = seat < 0;
+    const fan = fanMarkup(seat);
+    if (fanEl.dataset.markup !== fan) {
+      fanEl.innerHTML = fan;
+      fanEl.dataset.markup = fan;
+    }
+    fanEl.hidden = seat < 0;
     const handTitle = byId("tableHandTitle");
     handTitle.hidden = seat < 0;
     if (seat >= 0) {
@@ -270,6 +292,7 @@
   }
   bookEl.addEventListener("click", selectSuit);
   handEl.addEventListener("click", selectSuit);
+  fanEl.addEventListener("click", selectSuit);
 
   actionsEl.addEventListener("click", (event) => {
     const button = event.target.closest?.("[data-table-action], [data-table-step]");

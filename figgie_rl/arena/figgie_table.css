@@ -315,6 +315,60 @@ button.book-tile:hover {
 
 .table-hand-title[hidden] { display: none; }
 
+/* Your cards, fanned. Cards overlap more as the hand grows so it always fits. */
+.table-fan {
+  max-width: 560px;
+  width: 100%;
+  margin: 0 auto;
+  padding-top: 10px;
+}
+
+.table-fan[hidden] { display: none; }
+
+.fan-row {
+  display: flex;
+  justify-content: center;
+}
+
+.fan-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 74px;
+  border-radius: 8px;
+  background: #fbfffc;
+  border: 1px solid #c9d8d1;
+  box-shadow: -2px 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 140ms ease;
+}
+
+.fan-card + .fan-card {
+  margin-left: min(-18px, calc((100% - 52px) / var(--gaps) - 52px));
+}
+
+.fan-card.suit-red { color: #c2412d; }
+.fan-card.suit-black { color: #062622; }
+
+.fan-corner {
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.fan-pip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.7rem;
+}
+
+.fan-card.selected { transform: translateY(-10px); }
+.fan-card.goal { border-color: var(--positive); box-shadow: 0 0 0 2px var(--positive); }
+
 .table-hand {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -477,5 +531,6 @@ button.book-tile:hover {
 @media (prefers-reduced-motion: reduce) {
   .book-tile.flash { animation: none; box-shadow: 0 0 0 3px var(--accent); }
   .hand-card.selected { transform: none; }
+  .fan-card { transition: none; }
   .seat { transition: none; }
 }
