@@ -1,5 +1,5 @@
 // Development only. Measure each subject on the same deals as Intermediate.
-const { simulate, interval, means, lineups } = require('./rate_bots.cjs');
+const { simulate, interval, means, lineups, experts } = require('./rate_bots.cjs');
 
 function measure(round) {
   const player = round.players[0];
@@ -29,7 +29,7 @@ function measure(round) {
 }
 function diagnose(count = 400) {
   if (!Number.isInteger(count) || count < 2 || count > 400) throw Error('Use 2–400 development seeds');
-  const subjects = [...lineups.intermediate, ...lineups.advanced];
+  const subjects = [...lineups.intermediate, ...experts];
   const rounds = simulate(subjects, lineups.intermediate.slice(0,3), [1,count], 'players', measure);
   const best = lineups.intermediate.reduce((a,_,i) =>
     means(rounds[i].map(row=>row.profit)) > means(rounds[a].map(row=>row.profit)) ? i : a, 0);

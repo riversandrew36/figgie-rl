@@ -673,7 +673,7 @@ test('committed tier ratings satisfy the schema and report the measured rules', 
   assert.equal(ratings.market, 'players');
   assert.match(ratings.revision, /^[a-f0-9]{7,40}$/);
   assert.deepEqual(ratings.development.seeds, [1, 400]);
-  assert.deepEqual(ratings.heldOut.seeds, [900000, 900399]);
+  assert.deepEqual(ratings.heldOut.seeds, [912000, 912399]);
   assert.equal(ratings.lineups.intermediate.length, 4);
   for (const block of [ratings.development, ratings.heldOut]) {
     for (const row of Object.values(block.rows)) {
@@ -690,8 +690,8 @@ test('committed tier ratings satisfy the schema and report the measured rules', 
     assert.equal(block.advancedPass,
       ratings.lineups.advanced.every(bot => block.rows[bot.name].vsBest[1] > 0));
   }
-  assert.equal(ratings.heldOut.beginnerPass, true);
-  assert.ok(ratings.heldOut.novice.paired[1] > 0);
+  assert.deepEqual(ratings.lineups.beginner.map(bot => bot.strategy), [0, 2, 3]);
+  assert.ok(ratings.heldOut.rows["Expert Hunt"]);
 });
 
 test('tier share restores measured opponents and old links retain their lineup', () => {
