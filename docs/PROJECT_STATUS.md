@@ -3,6 +3,27 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Advanced confirmation result — November 20, 2026
+
+**Advanced is open.** The pre-registered run below used 6,000 fresh paired
+deals, 940000–945999, once, with the lineup frozen in commit `d58e1f1` before
+the range was opened. Bluffer was the best Intermediate style on these deals.
+Chips per round, paired 95% intervals:
+
+| Bot | Profit | vs Bluffer | vs Hold |
+|---|---|---|---|
+| Strategist Hold | +7.39 [+5.93, +8.86] | **+2.85 [+1.62, +4.08]** | +11.96 [+10.64, +13.28] |
+| Strategist Press | +7.83 [+6.34, +9.31] | **+3.28 [+2.05, +4.51]** | +12.39 [+11.05, +13.73] |
+| Strategist Close | +7.35 [+5.89, +8.80] | **+2.80 [+1.57, +4.03]** | +11.91 [+10.60, +13.22] |
+| Bluffer | +4.55 [+3.17, +5.92] | 0 | +9.11 [+7.72, +10.50] |
+
+All three lower bounds are above zero, so `confirmation.advancedPass` is
+true and the existing gate opens the tier. The Play table seats Hold, Press
+and Close. The Watch "Advanced trio vs Bluffer" preset adds Bluffer as the
+fourth seat. The 930000–931999 block stays in the ratings as history, where
+Read and Close missed the bar. `node scripts/rate_bots.cjs --check` now
+recomputes the confirmation too and takes about 14 minutes.
+
 ## Advanced confirmation pre-registration — November 20, 2026
 
 This is a confirmation run, not a new search. It is the second held-out

@@ -14,7 +14,7 @@
   const descriptions = {
     beginner: "Slower scripted bots with noisy prices and no tape reading.",
     intermediate: "The original scripted styles, with their usual strategies.",
-    advanced: "Analysts value each card by how much it adds to their chance of winning the majority.",
+    advanced: "Strategists track every public trade, watch the majority race, and keep the cards they need.",
     custom: "Choose your opponents, including the optional Lab policies.",
   };
   const ids = advancedReady ? ["beginner", "intermediate", "advanced", "custom"] : ["beginner", "intermediate", "custom"];
@@ -191,7 +191,9 @@
   byId("tierResearch").innerHTML = "<h3>How bot tiers are rated</h3><p>All three tiers use scripted bots. " +
     "The rating run compares candidates on the same seeds against the same reference table. " +
     "Held-out deals decide promotion, using paired 95% intervals. PPO seats remain available in Custom Lab rounds.</p>" +
-    (advancedReady ? "" : "<p>Advanced is coming soon. The full lineup did not clear the held-out bar. " +
+    (advancedReady ? "<p>Advanced opened after a pre-registered test on 6,000 fresh deals. Each Strategist " +
+      "beat Bluffer, the best Intermediate bot, by about three chips a round, and each 95% interval stayed above zero.</p>"
+      : "<p>Advanced is coming soon. The full lineup did not clear the held-out bar. " +
       "The tier opens when all four beat the best Intermediate on held-out deals.</p>");
   globalThis.figgieTiers = {
     badge, specs, useCustom, showSettings, started, ended,
