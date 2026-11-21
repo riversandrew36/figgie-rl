@@ -42,12 +42,14 @@ def arena_directory() -> Path:
     atexit.register(shutil.rmtree, temp_dir, True)
     missing: list[str] = []
     for name in ARENA_ASSETS:
-        resource = root.joinpath(name)
+        resource = root.joinpath(*name.split("/"))
         if not resource.is_file():
             missing.append(name)
             continue
         with as_file(resource) as source:
-            shutil.copy(source, temp_dir / name)
+            destination = temp_dir / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(source, destination)
     if missing:
         raise FileNotFoundError(
             "Figgie arena assets are not installed: " + ", ".join(missing)

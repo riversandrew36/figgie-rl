@@ -477,25 +477,51 @@ test('daily round hides the seed field until the round ends', () => {
   assert.equal(elements.get('seedInput').hidden, false);
 });
 
-test('policy parity gate reproduces the resting-offer mismatch at decision four', () => {
-  const fixture = require('./fixtures/ppo_quote_probe.json');
+test('Lab matches Python observations, MaskablePPO masks, logits and actions', (t) => {
+  const fixture = require('./fixtures/ppo_lab_parity.json');
   const { run } = load();
-  run(`game.loadDeal(${JSON.stringify({ inventories: fixture.inventories, goalSuitIdx: fixture.goalSuitIdx })});
-    game.applyAction(1, { kind: "quote_ask", suit: 0, price: 8 });`);
-  let tick = 0;
-  const mismatches = [];
-  for (const row of fixture.steps) {
-    while (tick < row.browser_tick) {
-      run('game.ageAndExpireQuotes()');
-      tick += 1;
+  run(fs.readFileSync('figgie_rl/arena/figgie_lab_policy.js', 'utf8'));
+  let maxObservation = 0;
+  let maxLogits = 0;
+  for (const [name, deals] of Object.entries(fixture)) {
+    run(fs.readFileSync(`figgie_rl/arena/policies/${name}.js`, 'utf8'));
+    for (const deal of deals) {
+      run(`game.reset(60000, 7, {marketMode:'lab'});
+        game.loadDeal(${JSON.stringify({ inventories: deal.inventories, goalSuitIdx: deal.goalSuitIdx, marketMode: 'lab' })});
+        game.actionOrderStart = ${deal.order};
+        game.tieBreakStart = ${deal.tie};
+        var scriptedActions = ${JSON.stringify(deal.actions)};`);
+      let tick = 0;
+      for (const expected of deal.decisions) {
+        while (tick < expected.tick) {
+          run('game.runLabTurn(scriptedActions[game.tick] || {}); game.tick += 1;');
+          tick += 1;
+        }
+        const computed = plain(run(`(() => {
+          const actor = figgiePolicies.${name};
+          const observation = labObservation(game, 0, actor.hidden_blocks);
+          const mask = labActionMask(game, 0, actor.actions);
+          const logits = labActor(actor.layers, observation);
+          return {observation: [...observation], logits: [...logits],
+            mask: mask.map(Number).join(""), argmax: labMaskedArgmax(logits, mask)};
+        })()`));
+        const diff = (actual, reference) => {
+          assert.equal(actual.length, reference.length);
+          return Math.max(...actual.map((value, i) => Math.abs(value - reference[i])));
+        };
+        const obs = diff(computed.observation, expected.observation);
+        const logits = diff(computed.logits, expected.logits);
+        const context = `${name}, order ${deal.order}, step ${tick}`;
+        assert.ok(obs <= 1e-6, `${context}: observation diff ${obs}`);
+        assert.ok(logits <= 1e-4, `${context}: logit diff ${logits}`);
+        assert.equal(computed.mask, expected.mask, context);
+        assert.equal(computed.argmax, expected.argmax, context);
+        maxObservation = Math.max(maxObservation, obs);
+        maxLogits = Math.max(maxLogits, logits);
+      }
     }
-    const ask = run('game.bestAsk(0, 0).price');
-    const encodedAsk = Number.isFinite(ask) ? Math.fround(ask / 20) : 0;
-    const expected = row.observation[9]; // First scaled best ask, after inventory, cash and bids.
-    if (Math.abs(encodedAsk - expected) > 1e-6) mismatches.push(row.decision);
   }
-  assert.deepEqual(mismatches, [4, 5, 6, 7]);
-  assert.equal(fixture.steps[4].best_ask, 8);
+  t.diagnostic(`Maximum observation difference ${maxObservation}; logit difference ${maxLogits}`);
 });
 
 test('existing one-minute scripted rounds keep their main-branch trade logs', () => {
@@ -553,13 +579,30 @@ test('lab rotates actions, applies a queued order once and ages quotes in decisi
 
 test('daily, lessons and tutorial switch a lab share visitor back to Players', () => {
   for (const button of ['playDaily', 'learnBasics']) {
-    const {run,elements} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&mode=play&seed=7');
+    const {run,elements} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&seed=7');
     assert.equal(run('game.marketMode'), 'lab');
     run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
     elements.get(button).click();
     assert.equal(run('game.marketMode'), 'players');
   }
-  const {run} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&mode=play&seed=7&lesson=hunter');
+  const {run} = load('https://example.test/figgie-rl/?market=lab&version=2.0.0&seed=7&lesson=hunter');
   run(fs.readFileSync('figgie_rl/arena/figgie_lessons.js', 'utf8'));
   assert.equal(run('game.marketMode'), 'players');
+});
+
+test('weight scripts are lazy, per-policy, and resolve under the arena prefix', async () => {
+  const { run } = load();
+  run(`document.currentScript = {src:"https://example.test/figgie-rl/figgie_lab_policy.js"};
+      var appended = [];
+      document.createElement = () => ({});
+      document.head = {append(script) {appended.push(script);}};`);
+  run(fs.readFileSync('figgie_rl/arena/figgie_lab_policy.js', 'utf8'));
+  assert.equal(run('appended.length'), 0);
+  const pending = run('loadLabPolicy("ppo_no_aids")');
+  const duplicate = run('loadLabPolicy("ppo_no_aids")');
+  assert.equal(pending, duplicate);
+  assert.equal(run('appended.length'), 1);
+  assert.equal(run('appended[0].src'), 'https://example.test/figgie-rl/policies/ppo_no_aids.js');
+  run('globalThis.figgiePolicies = {ppo_no_aids:{}}; appended[0].onload();');
+  await pending;
 });

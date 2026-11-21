@@ -15,9 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_pages_contains_only_browser_assets(tmp_path: Path) -> None:
     build = runpy.run_path(str(ROOT / "scripts" / "build_pages.py"))["build"]
     build(tmp_path)
-    assert {p.name for p in tmp_path.iterdir()} == {
+    assert {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()} == {
         "index.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js", "og-image.png",
-        "rl_results.json", "figgie_rl_showcase.js",
+        "rl_results.json", "figgie_rl_showcase.js", "figgie_lab_policy.js",
+        "policies/ppo_goal_shown.js", "policies/ppo_no_aids.js",
     }
     html = (tmp_path / "index.html").read_text()
     assert 'href="figgie_arena.css"' in html

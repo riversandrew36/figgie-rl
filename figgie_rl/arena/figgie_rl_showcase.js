@@ -68,4 +68,17 @@
   }).join("");
   document.getElementById("rlProvenance").textContent =
     `Study ${data.study} · development seeds ${data.evaluation_seeds.join("–")}. These results are from Python and are not a held-out final test.`;
+  const browserResults = JSON.parse(document.getElementById("labBenchmarkData").textContent);
+  if (browserResults.length) {
+    document.getElementById("labBenchmark").innerHTML =
+      '<h3>Browser Lab results</h3><p>Each bot took seat one against Hunter, Banker, and Detective ' +
+      'on seeds 1–200. The intervals summarize mean profit over these deals. ' +
+      'The browser uses its own deals and ports of the Python scripted bots.</p>' +
+      '<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable browser Lab benchmark">' +
+      '<table><caption>Chips per round, with 95% intervals</caption>' +
+      '<thead><tr><th scope="col">Seat</th><th scope="col">Mean</th><th scope="col">95% interval</th></tr></thead><tbody>' +
+      browserResults.map(({ name, mean, low, high }) =>
+        `<tr><th scope="row">${name}</th><td>${mean}</td><td>[${low}, ${high}]</td></tr>`).join("") +
+      "</tbody></table></div>";
+  }
 })();
