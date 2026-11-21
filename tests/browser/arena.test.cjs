@@ -722,3 +722,32 @@ test('tier diagnosis reconciles cashflow and settlement on five development deal
     assert.ok(row.profit.paired.every(Number.isFinite));
   }
 });
+
+test('Analyst majority lookup is reproducible and decisions stay below 1 ms on average', () => {
+  const { performance } = require('node:perf_hooks');
+  const { majorityTable } = require('../../scripts/build_analyst_tables.cjs');
+  const { run } = load();
+  assert.deepEqual(plain(run('ANALYST_MAJORITY')), majorityTable());
+  run(`game.reset(60000,7,{playerSpecs:[{name:"Analyst",strategy:5,profile:{actionCap:500,quoteEvery:1}},
+    ...BOT_NAMES.slice(0,3).map((name,strategy)=>({name,strategy}))]})`);
+  const start = performance.now();
+  const nonHold = run(`(() => {
+    let count = 0;
+    for (; game.tick < 240; game.tick++) {
+      game.elapsedMs = game.tick * 250;
+      game.ageAndExpireQuotes();
+      const action = game.pickAction(0);
+      if (action.kind === "hold") continue;
+      count++;
+      const player = game.players[0];
+      if ((action.kind === "quote_bid" && player.cash < action.price) ||
+          (action.kind === "quote_ask" && player.inventory[action.suit] <= 0)) throw Error("Unbacked");
+      game.applyAction(0, action);
+      if (game.pickAction(0).kind !== "hold") throw Error("More than one action in a tick");
+    }
+    return count;
+  })()`);
+  const perDecision = (performance.now() - start) / 240;
+  assert.ok(nonHold > 0);
+  assert.ok(perDecision < 1, `Mean decision time was ${perDecision.toFixed(3)} ms`);
+});
