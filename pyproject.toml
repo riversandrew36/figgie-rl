@@ -60,6 +60,7 @@ py-modules = ["figgie_play"]
   "policies/ppo_no_aids.js",
   "figgie_table.js",
   "figgie_table.css",
+  "tier_ratings.json",
 ]
 
 [tool.pytest.ini_options]

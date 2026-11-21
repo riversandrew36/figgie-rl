@@ -5,7 +5,8 @@
     "test": "node --test tests/browser/arena.test.cjs && node scripts/eval_browser_policy.cjs --check",
     "test:browser": "playwright test",
     "build:pages": "python3 scripts/build_pages.py",
-    "eval:browser-policy": "node scripts/eval_browser_policy.cjs"
+    "eval:browser-policy": "node scripts/eval_browser_policy.cjs",
+    "rate:bots": "node scripts/rate_bots.cjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1"

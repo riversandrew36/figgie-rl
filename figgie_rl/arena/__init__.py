@@ -15,4 +15,5 @@ ARENA_ASSETS = (
     "policies/ppo_no_aids.js",
     "figgie_table.js",
     "figgie_table.css",
+    "tier_ratings.json",
 )
