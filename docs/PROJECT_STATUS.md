@@ -22,7 +22,7 @@ true and the existing gate opens the tier. The Play table seats Hold, Press
 and Close. The Watch "Advanced trio vs Bluffer" preset adds Bluffer as the
 fourth seat. The 930000–931999 block stays in the ratings as history, where
 Read and Close missed the bar. `node scripts/rate_bots.cjs --check` now
-recomputes the confirmation too and takes about 14 minutes.
+recomputes the confirmation too and takes about 9 minutes.
 
 ## Advanced confirmation pre-registration — November 20, 2026
 
