@@ -621,3 +621,46 @@ test('weight scripts are lazy, per-policy, and resolve under the arena prefix', 
   run('globalThis.figgiePolicies = {ppo_no_aids:{}}; appended[0].onload();');
   await pending;
 });
+
+test('unprofiled Lab retains the main-branch trades, RNG and settlement', () => {
+  const { createHash } = require('node:crypto');
+  for (const [seed, digest] of [
+    [7, 'b470c31743079bad98b311412712d3e5db27e0f3c4db8d57fd2047a6d13506e7'],
+    [19, 'b7371f6cba6a509fe380421a49390ecf1a67893a786d3a210f1c32dadcac96e5'],
+  ]) {
+    const { run } = load();
+    const result = run(`game.start(60000,${seed},1,{marketMode:"lab"});while(game.running)game.step(true);
+      JSON.stringify([game.roundLog,game.rngState,game.goalSuitIdx,game.players.map(p=>p.cash),game.winnerIdxs])`);
+    assert.equal(createHash('sha256').update(result).digest('hex'), digest);
+  }
+});
+
+test('profiled draws replay exactly and Expert respects backing and the book', () => {
+  function replay() {
+    const { run } = load();
+    return plain(run(`(() => {
+      const round = new FiggieViewerGame();
+      round.reset(60000, 7, {playerSpecs:[{name:"Expert",strategy:4,
+        profile:{actRate:0.75,valueNoise:2,usesTape:false}},...BOT_NAMES.slice(0,3).map((name,strategy)=>({name,strategy}))]});
+      for (; round.tick < 240; round.tick++) {
+        round.ageAndExpireQuotes();
+        for (let i=0; i<4; i++) {
+          const action = round.pickAction(i);
+          if (i === 0 && action.kind !== "hold") {
+            const {kind, suit, price} = action;
+            const p = round.players[0];
+            if (kind === "quote_bid" && !(price <= p.cash && price < round.bestAsk(suit,0).price)) throw Error("Unbacked or crossing bid");
+            if (kind === "quote_ask" && !(p.inventory[suit] > 0 && price > round.bestBid(suit,0).price)) throw Error("Unbacked or crossing offer");
+            if (kind === "buy" && !(round.bestAsk(suit,0).price <= p.cash)) throw Error("Unbacked buy");
+            if (kind === "sell" && !(p.inventory[suit] > 0)) throw Error("Unbacked sale");
+          }
+          round.applyAction(i, action);
+        }
+      }
+      return [round.roundLog,round.rngState];
+    })()`));
+  }
+  const first = replay();
+  assert.ok(first[0].length > 0);
+  assert.deepEqual(replay(), first);
+});
