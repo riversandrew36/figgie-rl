@@ -697,8 +697,9 @@ test('committed tier ratings satisfy the schema and report the measured rules', 
 test('tier share restores measured opponents and old links retain their lineup', () => {
   for (const [query, expected, tier] of [
     ['', ['You','Rookie Hunter','Rookie Detective','Rookie Bluffer'], 'beginner'],
+    // Advanced is closed until it clears the held-out rule, so its links open Intermediate.
     ['?seed=7&duration=60000&market=players&mode=play&version=2.0.0&tier=advanced',
-      ['You','Expert Hunt','Expert Bank','Expert Scout'],'advanced'],
+      ['You','Hunter','Banker','Detective'],'intermediate'],
     ['?seed=7&duration=60000&market=players&mode=play&version=2.0.0',
       ['You','Hunter','Banker','Detective'],'custom'],
   ]) {
