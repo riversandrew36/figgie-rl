@@ -5,7 +5,8 @@
   const { lineups } = data;
   // Advanced opens only when its bots beat Intermediate on held-out deals.
   // Until then the tier is shown as coming soon and never seats a player.
-  const advancedReady = Boolean(data.heldOut.advancedPass);
+  // The pre-registered confirmation run decides when it exists.
+  const advancedReady = Boolean((data.confirmation || data.heldOut).advancedPass);
   const titles = {
     beginner: "Beginner", intermediate: "Intermediate",
     advanced: advancedReady ? "Advanced" : "Advanced · coming soon", custom: "Custom",
@@ -22,7 +23,8 @@
   const preset = byId("battlePreset");
   const matches = {
     intermediate: () => lineups.intermediate,
-    advanced: () => lineups.advanced,
+    // Three Advanced bots fill the Play table; Watch adds Bluffer as the fourth seat.
+    advanced: () => [...lineups.advanced, lineups.intermediate[3]].slice(0, 4),
     "advanced-v-intermediate": () => [lineups.advanced[0], lineups.intermediate[0], lineups.advanced[2], lineups.intermediate[1]],
     "intermediate-v-beginner": () => [lineups.intermediate[0], lineups.beginner[0], lineups.intermediate[1], lineups.beginner[1]],
     everyone: () => [lineups.beginner[0], lineups.intermediate[0], lineups.advanced[0], lineups.intermediate[3]],
