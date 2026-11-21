@@ -1594,6 +1594,7 @@ function render() {
   if (keyboardHelpEl) keyboardHelpEl.hidden = !isPlayMode();
   renderStrengthTracker();
   globalThis.figgieTeaching?.render();
+  globalThis.figgieTable?.render();
 }
 
 function onRoundEnded() {

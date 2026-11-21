@@ -530,3 +530,76 @@ test('Watch Lab share preserves PPO seats and the selected schedule', async ({pa
   await completeRound(page);
   await expect(page.locator('#botRows')).toContainText('PPO · no aids');
 });
+
+test('table view seats you with three bots, trades from the action bar and settles at the table', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  const requests = [];
+  const errors = [];
+  page.on('request', (request) => requests.push(request.url()));
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/figgie-rl/');
+  await expect(page.locator('#openTable')).toHaveAttribute('href', '?view=table');
+  await page.goto('/figgie-rl/?view=table&seed=23&duration=30000&market=players&version=2.0.0&mode=play');
+  const table = page.locator('#pokerTable');
+  await expect(table).toBeVisible();
+  await expect(page.locator('#lessons')).toBeHidden();
+  await expect(table.locator('.table-credit a[href="https://www.figgie.com/"]')).toBeVisible();
+  await expect(table.locator('.table-credit a[href^="https://www.youtube.com/"]')).toBeVisible();
+  await expect(table.locator('.table-lobby')).toHaveAttribute('href', /\/figgie-rl\/\?seed=23&duration=30000&market=players&version=2.0.0&mode=play$/);
+
+  await page.locator('#tableCenter').getByRole('button', { name: 'Deal me in' }).click();
+  await expect(page.locator('#tableCenter')).toBeHidden();
+  await page.locator('#pauseBtn').click();
+  await expect(page.locator('#seatBottom')).toHaveClass(/seat-me/);
+  await expect(page.locator('#seatBottom .seat-name')).toHaveText('You');
+  for (const id of ['#seatLeft', '#seatTop', '#seatRight']) {
+    await expect(page.locator(`${id} .seat-name`)).not.toHaveText('You');
+    await expect(page.locator(`${id} .seat-hand`)).toHaveCount(0);
+  }
+  await expect(page.locator('#tableGoal')).toHaveText('Goal hidden');
+  await expect(page.locator('#tableHand .hand-card')).toHaveCount(4);
+
+  await page.locator('#tableHand [data-table-suit="1"]').click();
+  await expect(page.locator('#tableActionSuit')).toContainText('Clubs');
+  const start = await page.evaluate(() => game.humanPriceDrafts[1]);
+  await page.locator('[data-table-step="1"]').click();
+  await expect(page.locator('#tablePrice')).toHaveValue(String(start + 1));
+  await page.locator('#tablePrice').fill('1');
+  await page.locator('#tablePrice').dispatchEvent('change');
+  await page.locator('[data-table-action="quote_bid"]').click();
+  expect(await page.evaluate(() => game.players[humanPlayerIndex()].bidQuotes[1])).toBe(1);
+  await expect(page.locator('#seatBottom .seat-quotes')).toContainText('Bid');
+  await expect(page.locator('#tableBook [data-table-suit="1"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('table-play.png'), animations: 'disabled' });
+
+  await completeRound(page);
+  await expect(page.locator('#tableActions')).toBeHidden();
+  const goalName = await page.evaluate(() => SUITS[game.goalSuitIdx].name);
+  await expect(page.locator('#tableGoal')).toContainText(goalName);
+  await expect(page.locator('#tableCenter')).toContainText(`Goal: `);
+  await expect(page.locator('#tableCenter')).toContainText(goalName);
+  await expect(page.locator('.seat .seat-result')).toHaveCount(4);
+  await expect(page.locator('#tableBook .book-tile.goal')).toHaveCount(1);
+  await expect(page.locator('#tableCenter').getByRole('button', { name: 'Play again' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('table-settled.png'), animations: 'disabled' });
+
+  const origin = new URL(page.url()).origin;
+  expect(requests.filter((request) => new URL(request).origin !== origin)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('table view in Watch mode shows every hand and the live feed', async ({ page }) => {
+  await page.goto('/figgie-rl/?view=table&seed=5&duration=30000&market=players&version=2.0.0&mode=watch');
+  await page.locator('#watchModeInput').check();
+  await page.locator('#tableCenter').getByRole('button', { name: 'Start the round' }).click();
+  await page.evaluate(() => { for (let i = 0; i < 60 && game.running; i += 1) game.step(true); render(); });
+  await expect(page.locator('#tableHand')).toBeHidden();
+  await expect(page.locator('#tableActions')).toBeHidden();
+  await expect(page.locator('.seat .seat-hand')).toHaveCount(4);
+  const trades = await page.evaluate(() => game.tradeTape.length);
+  if (trades) await expect(page.locator('#tableFeed li:not(.feed-empty)').first()).toContainText('bought');
+  await completeRound(page);
+  await expect(page.locator('#tableCenter')).toContainText('Majority:');
+});

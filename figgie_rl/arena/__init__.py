@@ -13,4 +13,6 @@ ARENA_ASSETS = (
     "figgie_lab_policy.js",
     "policies/ppo_goal_shown.js",
     "policies/ppo_no_aids.js",
+    "figgie_table.js",
+    "figgie_table.css",
 )
