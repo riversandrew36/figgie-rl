@@ -78,14 +78,14 @@ without exposing your hand or the goal suit.
 ## Choose a tier or watch a battle
 
 New players start at **Beginner**. Switch to **Intermediate** for the original
-styles. **Advanced** is marked coming soon until all four candidates beat Intermediate. **Custom**
+styles, then take on the Strategists at **Advanced**. **Custom**
 opens the individual opponent and PPO choices. The daily deal and lessons
 keep their original lineups. In Watch, select a battle preset or run twenty
 seeded matches and compare each tier's average profit.
 
 The tiers are scripted. Paired held-out deals qualified the three Rookies.
-Two Strategists cleared the latest held-out bar against the best Intermediate
-bot. The full lineup did not qualify, so Advanced stays closed.
+The three Advanced Strategists each beat Bluffer, the best Intermediate bot,
+by about three chips a round in a pre-registered test on 6,000 fresh deals.
 [See the ratings and how to reproduce them](docs/PROJECT_STATUS.md).
 
 ## Play against a trained bot
