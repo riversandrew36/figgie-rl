@@ -1,31 +1,46 @@
 # Browser policy parity gate
 
-No learned policy is seated. The study used **MaskablePPO**, so reproducing the
-actor also requires Python's action-feasibility mask. The local exporter writes
-the actor layers, observation layout, hidden blocks, action decoding, and a
-fixed-deal probe with raw logits and the masked argmax.
+Both seed-902 MaskablePPO actors are available in the separate Lab market.
+This is the median seed for step 3, and its carried step-1 checkpoint supplies
+the goal-shown comparison. No Python runtime or checkpoint is required to play.
+
+## What Lab changed
+
+The earlier probe found a 0.4 observation mismatch at learner decisions 4–7.
+The ordinary Players market expired the $8 offer after eight 250 ms ticks.
+Python still had it because its quote age advances once per learner decision.
+Lab now runs 120 decisions per round. At 60 seconds, a decision takes 500 ms
+and a quote expires after eight decisions (four seconds). Lab draws an action
+rotation and a separate quote tie priority once from the browser's seeded RNG.
+The learned actor observes the state before ageing, as in Python, and its
+chosen action executes at its place in the rotation after ageing. Each human
+turn consumes at most one queued action. Players and Classic are unchanged.
+
+## Verification
+
+The checked-in fixture replays six fixed Python deals with rotations covering
+all four start seats. For each actor, it checks 96 observations around quote
+expiry, crossings, empty books, and the last two decisions. The forecast
+blocks are zeroed for the no-aids actor. Goal-oracle values are supplied only
+to the goal-shown actor. The actor's action selection uses the same observable
+feasibility mask as Python. The comparison checks:
+
+| Quantity | Maximum absolute difference | Limit |
+|---|---:|---:|
+| Observation | 4.93e-9 | 1e-6 |
+| Raw logit | 1.77e-6 | 1e-4 |
+
+Every mask and masked argmax matched. This gate compares the actor on the same
+market states. Browser deals, RNG, and scripted opponent ports are separate
+from Python's. Browser performance is reported separately.
 
 ```sh
-python -m scripts.export_browser_policy /tmp/figgie-policy-probe
+# Requires the local study checkpoints and summaries.
+python -m scripts.export_browser_policy
 npm test
+npm run eval:browser-policy -- --check
 ```
 
-The step-3 median seed is 902. Both actor exports use seed 902. The goal-shown
-actor is 330,696 bytes and the no-aids actor is 329,184 bytes. Only the diagnostic
-step-3 fixture is checked in, under `tests/browser/fixtures/`. Neither network
-is shipped to the site.
-
-The gate fails before an argmax comparison. The probe posts one $8 Spades offer,
-then lets it age with no other actions. At the required rate of two browser ticks
-per learner decision, browser tick 8 corresponds to Python decision 4. Python
-still has the offer at decisions 4–7 while the browser has already expired it.
-The observed best ask differs by 0.4 after scaling, and availability also
-differs. The Python quote lifetime is eight learner decisions. The browser
-lifetime is eight 250 ms ticks. The Node gate replays the offer through the
-existing browser engine and checks the four failing decisions.
-
-An encoder cannot reconstruct an executable offer that has expired. Matching
-the training timeline would require changing the live quote lifetime or adding
-a separate market for the learned seat. Either would change the requested
-market semantics. The exports are diagnostic and there are no browser PPO
-benchmark numbers.
+Only 201,869 bytes for the goal-shown actor and 201,954 bytes for the no-aids
+actor ship. Each file loads when its seat is selected. The parity fixture is
+293,388 bytes and is used by Node tests, outside the public Pages payload.

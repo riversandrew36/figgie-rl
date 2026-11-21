@@ -3,6 +3,33 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Trained-bot market and browser evaluation — November 20, 2026
+
+Lab seats the step-1 and step-3 seed-902 actors. A round has 120 decisions, with
+one turn per seat per decision and an eight-decision quote lifetime. Both
+actors passed the [Python parity gate](BROWSER_POLICY_PARITY.md) on six fixed
+deals each. Existing Players and Classic seed regressions match the earlier
+trade logs, RNG state, and settlement.
+
+In this browser evaluation, each subject occupied seat one in Lab at 60
+seconds against Hunter, Banker, and Detective on seeds 1–200. The intervals
+are normal approximations for each subject's mean, in chips per round.
+The browser uses its own deals and scripted ports. These are not the Python
+development results, and the intervals do not test paired differences.
+
+| Browser seat | Mean profit | 95% interval |
+|---|---:|---:|
+| PPO · sees the goal | +36.95 | [30.17, 43.74] |
+| PPO · no aids | −4.53 | [−6.87, −2.18] |
+| Hold | −7.28 | [−13.71, −0.86] |
+| Hunter | +2.56 | [−5.50, 10.62] |
+| Banker | −4.37 | [−10.81, 2.07] |
+| Detective | −7.05 | [−13.75, −0.35] |
+| Bluffer | +2.77 | [−4.76, 10.30] |
+
+Reproduce the embedded browser snapshot with
+`npm run eval:browser-policy -- --check`. Pass `--write` to regenerate it.
+
 ## Browser research showcase — November 20, 2026
 
 **What the AI learned** renders the archived strong-lineup ladder from
@@ -14,10 +41,10 @@ with the goal shown to −5.63 with odds alone. The no-aid stage averaged −2.6
 about +4.01 above Hold and below the scripted Bayesian, Hunter, and Bluffer
 baselines.
 
-The learned browser seats stopped at the [observation parity gate](BROWSER_POLICY_PARITY.md).
+At this stage, the learned browser seats stopped at the [observation parity gate](BROWSER_POLICY_PARITY.md).
 The browser expires a resting offer before Python at the requested decision
 rate. The first mismatched input differs by 0.4, above the 1e-6 tolerance.
-No browser policy evaluations or confidence intervals were produced.
+That stage produced no browser policy evaluations or confidence intervals.
 Scripted browser trade logs are unchanged for the pinned seeds.
 
 ## Player front page and daily deal — November 20, 2026
