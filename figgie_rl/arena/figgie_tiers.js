@@ -13,7 +13,7 @@
   const descriptions = {
     beginner: "Slower scripted bots with noisy prices and no tape reading.",
     intermediate: "The original scripted styles, with their usual strategies.",
-    advanced: "Expert candidates combine hand odds, aggressive flow, and inventory.",
+    advanced: "Analysts value each card by how much it adds to their chance of winning the majority.",
     custom: "Choose your opponents, including the optional Lab policies.",
   };
   const ids = advancedReady ? ["beginner", "intermediate", "advanced", "custom"] : ["beginner", "intermediate", "custom"];
@@ -189,9 +189,9 @@
   byId("tierResearch").innerHTML = "<h3>How bot tiers are rated</h3><p>All three tiers use scripted bots. " +
     "The rating run compares candidates on the same seeds against the same reference table. " +
     "Held-out deals decide promotion, using paired 95% intervals. PPO seats remain available in Custom Lab rounds.</p>" +
-    (advancedReady ? "" : "<p>Advanced is not open yet. On held-out deals every Expert candidate scored below the best " +
-      "Intermediate bot, so an Advanced table would play easier than Intermediate. It opens when a bot beats " +
-      "Intermediate on held-out deals.</p>");
+    (advancedReady ? "" : "<p>Advanced is not open yet. On held-out deals no candidate has beaten the best " +
+      "Intermediate bot, so an Advanced table would not be harder than Intermediate. It opens when every " +
+      "Advanced bot beats Intermediate on held-out deals.</p>");
   globalThis.figgieTiers = {
     badge, specs, useCustom, showSettings, started, ended,
     forcesPlayers: (play) => play ? tier !== "custom" : Boolean(matches[preset.value]),

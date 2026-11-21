@@ -79,12 +79,13 @@ excluded. Intermediate retains the four unprofiled styles, with Hunter,
 Banker, and Detective at the default Play table.
 
 Advanced is hidden. The picker shows it as coming soon and its battle
-presets are removed, because on held-out deals every Expert scored below the
-best Intermediate bot: Expert Hunt −6.06 [−9.97, −2.14], Expert Bank −7.05
+presets are removed. The Analysts above replaced the Experts as the Advanced
+candidates, and neither group has cleared the rule. On the original held-out
+range every Expert scored below the best Intermediate bot: Expert Hunt −6.06 [−9.97, −2.14], Expert Bank −7.05
 [−11.28, −2.82], Expert Scout −7.70 [−11.76, −3.64], and Expert Flow −7.90
 [−12.05, −3.76]. It opens automatically when `heldOut.advancedPass` becomes
-true. The candidate lineup is Expert Hunt, Expert Bank, and Expert Scout,
-with Expert Flow as the fourth Watch seat. Their
+true. The Experts were Expert Hunt, Expert Bank, Expert Scout, and Expert
+Flow. Their
 shared profile acts every turn, uses tape, has zero value noise, requires
 two chips of expected edge, quotes a two-chip spread, and values the
 majority share at 0.8 times the standard estimate. Tape weights are
