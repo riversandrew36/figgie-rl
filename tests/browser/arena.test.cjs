@@ -673,7 +673,7 @@ test('committed tier ratings satisfy the schema and report the measured rules', 
   assert.equal(ratings.market, 'players');
   assert.match(ratings.revision, /^[a-f0-9]{7,40}$/);
   assert.deepEqual(ratings.development.seeds, [1, 400]);
-  assert.deepEqual(ratings.heldOut.seeds, [912000, 912399]);
+  assert.deepEqual(ratings.heldOut.seeds, [930000, 931999]);
   assert.equal(ratings.lineups.intermediate.length, 4);
   for (const block of [ratings.development, ratings.heldOut]) {
     for (const row of Object.values(block.rows)) {
