@@ -3,6 +3,81 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Measured bot tiers and battles — November 20, 2026
+
+All tier seats are scripted. Beginner uses Rookie Hunter, Rookie Detective,
+and Rookie Bluffer. Their shared profile acts on 45% of turns, uses one chip
+of value noise, ignores the tape, requires seven chips of expected edge
+to cross, and quotes with an eight-chip spread. The profile values the
+majority share at twice the standard estimate. Rookie Banker used the same
+profile but its held-out interval against Banker included zero, so it was
+excluded. Intermediate retains the four unprofiled styles, with Hunter,
+Banker, and Detective at the default Play table.
+
+Advanced is a preview. Expert Hunt, Expert Bank, and Expert Scout are
+the Play lineup, and Expert Flow joins the four-bot Watch preset. Their
+shared profile acts every turn, uses tape, has zero value noise, requires
+two chips of expected edge, quotes a two-chip spread, and values the
+majority share at 0.8 times the standard estimate. Tape weights are
+0.14, 0.12, 0.18, and 0.22; inventory skews are 0.45, 0.85, 0.65, and 0.65.
+
+The evaluation put each candidate in seat zero against default Hunter,
+Banker, and Detective for 60 seconds in Players. The same seeds were used
+for each subject. Development seeds were 1–400. Profiles were frozen before
+opening held-out seeds 900000–900399. All numbers are chips per round, with
+normal-approximation 95% intervals in brackets. Paired differences use
+within-seed differences.
+
+| Subject | Development profit | Held-out profit | Development vs Hold | Held-out vs Hold |
+|---|---:|---:|---:|---:|
+| Hunter | +4.11 [-1.59, +9.81] | -0.66 [-6.40, +5.08] | +7.25 [+1.03, +13.48] | +2.00 [-3.96, +7.96] |
+| Banker | +2.06 [-3.00, +7.12] | -4.56 [-9.42, +0.31] | +5.20 [-0.85, +11.24] | -1.90 [-7.78, +3.99] |
+| Detective | +0.56 [-4.45, +5.57] | -1.63 [-6.61, +3.36] | +3.70 [+1.09, +6.32] | +1.03 [-0.94, +3.00] |
+| Bluffer | +7.19 [+1.70, +12.68] | +4.07 [-1.43, +9.58] | +10.34 [+4.79, +15.89] | +6.73 [+1.15, +12.31] |
+| Rookie Hunter | -5.70 [-11.27, -0.13] | -11.84 [-17.52, -6.17] | -2.56 [-7.91, +2.80] | -9.18 [-14.28, -4.09] |
+| Rookie Banker | -3.42 [-8.87, +2.04] | -8.31 [-13.85, -2.77] | -0.27 [-5.28, +4.73] | -5.65 [-10.54, -0.76] |
+| Rookie Detective | -5.35 [-10.83, +0.13] | -13.64 [-19.50, -7.78] | -2.21 [-7.27, +2.86] | -10.98 [-16.21, -5.75] |
+| Rookie Bluffer | +0.93 [-4.27, +6.13] | -3.74 [-9.05, +1.56] | +4.07 [-0.68, +8.82] | -1.09 [-5.69, +3.52] |
+| Expert Hunt | +2.40 [-2.02, +6.83] | -1.98 [-6.17, +2.21] | +5.54 [+0.02, +11.06] | +0.68 [-4.74, +6.09] |
+| Expert Bank | +2.78 [-1.92, +7.47] | -2.98 [-7.48, +1.53] | +5.92 [+0.43, +11.40] | -0.32 [-5.88, +5.25] |
+| Expert Scout | +1.03 [-3.42, +5.48] | -3.63 [-7.93, +0.67] | +4.17 [-1.10, +9.44] | -0.97 [-6.19, +4.24] |
+| Expert Flow | +0.59 [-3.52, +4.70] | -3.83 [-8.12, +0.46] | +3.73 [-1.18, +8.65] | -1.17 [-6.31, +3.97] |
+| Hold | -3.14 [-7.85, +1.57] | -2.66 [-7.60, +2.28] | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] |
+| Random | -169.91 [-175.27, -164.56] | -167.69 [-172.41, -162.98] | -166.77 [-173.69, -159.85] | -165.04 [-171.56, -158.51] |
+
+| Candidate | Development vs own style | Held-out vs own style | Development vs best Intermediate | Held-out vs best Intermediate |
+|---|---:|---:|---:|---:|
+| Rookie Hunter | -9.81 [-13.65, -5.97] | -11.19 [-14.88, -7.49] | -12.89 [-16.80, -8.99] | -15.92 [-20.17, -11.67] |
+| Rookie Banker | -5.47 [-10.02, -0.92] | -3.75 [-8.09, +0.59] | -10.61 [-14.53, -6.69] | -12.38 [-16.45, -8.32] |
+| Rookie Detective | -5.91 [-10.29, -1.53] | -12.01 [-16.79, -7.23] | -12.54 [-16.33, -8.76] | -17.71 [-22.01, -13.41] |
+| Rookie Bluffer | -6.26 [-10.03, -2.50] | -7.82 [-11.86, -3.78] | -6.26 [-10.03, -2.50] | -7.82 [-11.86, -3.78] |
+| Expert Hunt | -1.71 [-6.24, +2.81] | -1.33 [-5.62, +2.97] | -4.79 [-9.09, -0.50] | -6.06 [-9.97, -2.14] |
+| Expert Bank | +0.72 [-2.48, +3.92] | +1.58 [-1.68, +4.84] | -4.42 [-8.85, +0.01] | -7.05 [-11.28, -2.82] |
+| Expert Scout | +0.47 [-4.27, +5.21] | -2.00 [-6.70, +2.70] | -6.16 [-10.70, -1.63] | -7.70 [-11.76, -3.64] |
+| Expert Flow | -6.60 [-10.99, -2.22] | -7.90 [-12.05, -3.76] | -6.60 [-10.99, -2.22] | -7.90 [-12.05, -3.76] |
+
+Bluffer had the highest Intermediate mean on both ranges. The selected
+Beginner trio improved novice-proxy profit by +4.42 [+1.90, +6.93]
+on development deals and +3.65 [+1.12, +6.17] on held-out deals.
+All selected Rookies were above Random and had negative paired intervals
+against their matching defaults. No Expert cleared the Advanced rule.
+
+Run `npm run rate:bots` for development only, or
+`npm run rate:bots -- --check` to recompute both ranges and compare the
+committed data. The check tolerates 0.0002 chips across runtimes and
+checks the inline snapshot exactly. Any policy promotion requires a
+separate 60-second Lab reference run. For example:
+
+```sh
+npm run rate:bots -- --held-out --policy figgie_rl/arena/policies/ppo_no_aids.js
+```
+
+The command reports Players and Lab separately and checks the optional
+actor against the best Intermediate style in Lab. It does not change
+the lineups. A trained actor must clear the held-out tier rule before
+replacing a seat. No trained actor was promoted here. The existing PPO
+actors remain available through Custom and use the Lab schedule.
+
 ## Trained-bot market and browser evaluation — November 20, 2026
 
 Lab seats the step-1 and step-3 seed-902 actors. A round has 120 decisions, with

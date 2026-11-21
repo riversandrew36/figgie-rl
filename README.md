@@ -75,6 +75,18 @@ later attempts are practice. The dated result link stays playable after the
 day ends. Result sharing includes profit, prediction timing, and trade edges
 without exposing your hand or the goal suit.
 
+## Choose a tier or watch a battle
+
+New players start at **Beginner**. Switch to **Intermediate** for the original
+styles or **Advanced (preview)** to try the Expert candidates. **Custom**
+opens the individual opponent and PPO choices. The daily deal and lessons
+keep their original lineups. In Watch, select a battle preset or run twenty
+seeded matches and compare each tier's average profit.
+
+The tiers are scripted. Paired held-out deals qualified the three Rookies.
+The Experts have yet to clear the Advanced rule.
+[See the ratings and how to reproduce them](docs/PROJECT_STATUS.md).
+
 ## Play against a trained bot
 
 Replace an opponent with **PPO · no aids** or **PPO · sees the goal**. The
