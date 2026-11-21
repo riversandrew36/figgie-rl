@@ -166,6 +166,17 @@ input {
   width: 7rem;
 }
 
+/* A long option (the trained-bot market) must not widen the page on phones. */
+select {
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.shell,
+.hero {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .status-row {
   display: flex;
   flex-wrap: wrap;
