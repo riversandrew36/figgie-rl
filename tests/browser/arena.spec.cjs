@@ -603,3 +603,25 @@ test('table view in Watch mode shows every hand and the live feed', async ({ pag
   await completeRound(page);
   await expect(page.locator('#tableCenter')).toContainText('Majority:');
 });
+
+test('table view seats a trained bot in Lab and queues your action for your turn', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 375, height: 812 });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/figgie-rl/?view=table');
+  await page.locator('#opponentDetective').uncheck();
+  await page.locator('#opponentppo_no_aids').check();
+  await expect(page.locator('#marketModeSelect')).toHaveValue('lab');
+  await page.locator('#tableCenter').getByRole('button', { name: 'Deal me in' }).click();
+  await expect.poll(() => page.evaluate(() => game.running && game.marketMode)).toBe('lab');
+  await page.locator('#pauseBtn').click();
+  const seatNames = await page.locator('.seat .seat-name').allTextContents();
+  expect(seatNames.some((name) => name.includes('PPO · no aids'))).toBe(true);
+  await page.locator('[data-table-step="1"]').click();
+  await page.locator('[data-table-action="quote_bid"]').click();
+  await expect(page.locator('#tableActionHelp')).toContainText('Queued for your turn');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await completeRound(page);
+  await expect(page.locator('.seat .seat-result')).toHaveCount(4);
+  expect(errors).toEqual([]);
+});

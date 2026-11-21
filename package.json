@@ -2,7 +2,7 @@
   "name": "figgie-learning-lab-checks",
   "private": true,
   "scripts": {
-    "test": "node --test tests/browser/arena.test.cjs",
+    "test": "node --test tests/browser/arena.test.cjs && node scripts/eval_browser_policy.cjs --check",
     "test:browser": "playwright test",
     "build:pages": "python3 scripts/build_pages.py",
     "eval:browser-policy": "node scripts/eval_browser_policy.cjs"
