@@ -67,6 +67,8 @@ jobs:
               "figgie_rl/arena/figgie_lab_policy.js",
               "figgie_rl/arena/policies/ppo_goal_shown.js",
               "figgie_rl/arena/policies/ppo_no_aids.js",
+              "figgie_rl/arena/figgie_table.js",
+              "figgie_rl/arena/figgie_table.css",
           ]
           missing = [name for name in required if name not in names]
           if missing:

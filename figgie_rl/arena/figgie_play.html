@@ -18,6 +18,8 @@
   <meta name="twitter:image" content="https://riversandrew36.github.io/figgie-rl/og-image.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%23062622'/%3E%3Cg font-family='serif' font-size='25' text-anchor='middle'%3E%3Ctext x='19' y='28' fill='%23ffd166'%3E%E2%99%A0%3C/text%3E%3Ctext x='45' y='28' fill='%23ff8f7b'%3E%E2%99%A5%3C/text%3E%3Ctext x='19' y='54' fill='%23ffd166'%3E%E2%99%A3%3C/text%3E%3Ctext x='45' y='54' fill='%23ff8f7b'%3E%E2%99%A6%3C/text%3E%3C/g%3E%3C/svg%3E" />
   <link rel="stylesheet" href="figgie_arena.css" />
+  <link rel="stylesheet" href="figgie_table.css" />
+  <script>if (/\/play(\.html)?$/.test(location.pathname) || new URLSearchParams(location.search).get("view") === "table") document.documentElement.classList.add("table-view");</script>
 </head>
 <body>
   <a class="skip-link" href="#arena">Skip to arena</a>
@@ -30,6 +32,7 @@
           <button id="playNow" type="button">Play now</button>
           <button id="learnBasics" class="reset-btn" type="button">Learn the basics (3 min)</button>
           <a href="#reinforcement-learning">Train an agent</a>
+          <a id="openTable" class="table-link" href="?view=table" target="_blank" rel="noopener">Open the table ↗</a>
         </nav>
         <p id="welcomeBack" class="small" hidden></p>
       </div>
@@ -143,6 +146,47 @@
         <a href="#lessons" id="tutorialLesson">Try a bot lesson</a>
         <p>Ready for the real thing? <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>.</p>
       </div>
+    </section>
+
+    <section id="pokerTable" class="poker-table" aria-label="Figgie table" hidden>
+      <div class="table-status" aria-live="polite">
+        <a class="table-lobby" data-lobby-link href="./">← Lobby</a>
+        <span id="tableTimer" class="table-chip table-timer">00:00</span>
+        <span id="tablePot" class="table-chip">Pot $200</span>
+        <span id="tableGoal" class="table-chip">Goal hidden</span>
+        <span id="tableMajority" class="table-chip">Ready</span>
+      </div>
+      <div class="felt">
+        <section id="seatTop" class="seat seat-top" aria-live="off"></section>
+        <section id="seatLeft" class="seat seat-left" aria-live="off"></section>
+        <div class="felt-center">
+          <div id="tableBook" class="table-book" aria-label="Order book"></div>
+          <div id="tableCenter" class="table-center" aria-live="polite"></div>
+        </div>
+        <section id="seatRight" class="seat seat-right" aria-live="off"></section>
+        <section id="seatBottom" class="seat seat-bottom" aria-live="off"></section>
+      </div>
+      <div id="tableHand" class="table-hand" aria-label="Your hand: choose a suit"></div>
+      <div id="tableActions" class="table-actions" hidden>
+        <span id="tableActionSuit" class="table-action-suit"></span>
+        <button type="button" data-table-action="buy">Buy</button>
+        <button type="button" data-table-action="sell">Sell</button>
+        <span class="table-price">
+          <button type="button" data-table-step="-1" aria-label="Lower price">−</button>
+          <label class="sr-only" for="tablePrice">Quote price</label>
+          <input id="tablePrice" type="number" min="1" max="60" step="1" value="8" aria-describedby="tableActionHelp" />
+          <button type="button" data-table-step="1" aria-label="Raise price">+</button>
+        </span>
+        <button type="button" data-table-action="quote_bid">Bid</button>
+        <button type="button" data-table-action="quote_ask">Offer</button>
+        <button type="button" class="reset-btn" data-table-action="cancel">Cancel quotes</button>
+        <p id="tableActionHelp" class="small table-action-help" aria-live="polite"></p>
+      </div>
+      <p class="small table-credit">Figgie was created by Jane Street. <a href="https://www.figgie.com/">Play the official game</a> · <a href="https://www.youtube.com/watch?v=q2jjJudrEnc&amp;t=13s">Watch Jane Street’s gameplay video</a>. Independent educational project, not affiliated with or endorsed by Jane Street.</p>
+    </section>
+    <section id="tableFeedPanel" class="panel table-feed-panel" hidden aria-labelledby="tableFeedTitle">
+      <h2 id="tableFeedTitle" class="section-title">Trades</h2>
+      <ol id="tableFeed" class="table-feed" aria-live="polite" aria-relevant="additions"></ol>
     </section>
 
     <section class="grid">
@@ -337,5 +381,6 @@
   <script src="figgie_lab_policy.js"></script>
   <script src="figgie_arena.js"></script>
   <script src="figgie_lessons.js"></script>
+  <script src="figgie_table.js"></script>
 </body>
 </html>

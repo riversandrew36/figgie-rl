@@ -18,7 +18,7 @@ def test_pages_contains_only_browser_assets(tmp_path: Path) -> None:
     assert {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()} == {
         "index.html", "figgie_arena.css", "figgie_arena.js", "figgie_lessons.js", "og-image.png",
         "rl_results.json", "figgie_rl_showcase.js", "figgie_lab_policy.js",
-        "policies/ppo_goal_shown.js", "policies/ppo_no_aids.js",
+        "policies/ppo_goal_shown.js", "policies/ppo_no_aids.js", "figgie_table.js", "figgie_table.css",
     }
     html = (tmp_path / "index.html").read_text()
     assert 'href="figgie_arena.css"' in html
