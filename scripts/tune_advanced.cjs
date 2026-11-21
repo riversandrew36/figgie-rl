@@ -1,6 +1,8 @@
 // Searches development and validation ranges only. No held-out imports.
 const fs = require('node:fs');
-const { simulate, interval, means, lineups, analysts } = require('./rate_bots.cjs');
+const { simulate, interval, means, lineups, analysts, strategists: frozenStrategists } = require('./rate_bots.cjs');
+// The extra checks cover all four frozen Strategists, not just the three-bot lineup.
+const rated = frozenStrategists;
 
 const dev = [1, 400];
 const validation = [520000, 520399];
@@ -31,16 +33,16 @@ function extraChecks() {
   const seeds = validation;
   const hold = {name:'Hold',isHuman:true};
   const pair = (first, second) => interval(first.map((value,i) => value-second[i]));
-  const rivals = [...lineups.intermediate, ...lineups.advanced, hold];
+  const rivals = [...lineups.intermediate, ...rated, hold];
   const beginner = simulate(rivals, lineups.beginner, seeds);
   const best = lineups.intermediate.reduce((a,_,i) =>
     means(beginner[i]) > means(beginner[a]) ? i : a, 0);
-  const strategists = lineups.advanced.filter(bot => bot.strategy === 6);
+  const strategists = rated.filter(bot => bot.strategy === 6);
   const trio = strategists.length >= 3 ? strategists.slice(0,3) : grid().filter(bot => bot.strategy === 6).slice(0,3);
   const [bluffer, blufferControl] = simulate([lineups.intermediate[3],hold], trio, seeds);
   return {seeds, blufferTable:{lineup:trio.map(bot=>bot.name), profit:interval(bluffer), vsHold:pair(bluffer,blufferControl)}, beginnerReference:lineups.intermediate[best].name,
-    rows:lineups.advanced.map((subject,i) => {
-      const opponents = lineups.advanced.filter(bot=>bot !== subject);
+    rows:rated.map((subject,i) => {
+      const opponents = rated.filter(bot=>bot !== subject);
       const [allAdvanced, reference] = simulate([subject,hold], opponents, seeds);
       return {name:subject.name, allAdvanced:interval(allAdvanced),
         allAdvancedHold:interval(reference), allAdvancedVsHold:pair(allAdvanced,reference),

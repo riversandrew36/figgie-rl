@@ -3,6 +3,32 @@
 Updated November 20, 2026. This is the handoff for resuming the project. Historical training results below are preserved and are not evidence of performance in the new player-quote market.
 
 
+## Advanced confirmation pre-registration — November 20, 2026
+
+This is a confirmation run, not a new search. It is the second held-out
+attempt for the Strategists, so it uses seeds none of them has seen.
+
+- **Lineup, frozen in this commit:** Strategist Hold, Strategist Press and
+  Strategist Close, unchanged from their 930000–931999 profiles. They had the
+  three highest held-out means there. Read is dropped. Three bots is exactly
+  the Advanced Play table.
+- **Seeds:** 6,000 fresh paired deals, **940000–945999**. No earlier range
+  overlaps them: 1–400, 500000–500399, 520000–520399, 900000–900399,
+  912000–912399 and 930000–931999.
+- **Power:** on 930000–931999 the paired SDs were 48.3–49.1 chips. With SD
+  49.1 and 6,000 pairs, a true +2.0 edge passes with 88% probability, +2.1
+  with 91%, and +2.275 (the unselected mean of all four Strategists) with
+  95%. Because selection inflates the observed means, true edges may be
+  smaller.
+- **Rule, unchanged:** each lineup bot plays seat 0 against Hunter, Banker
+  and Detective in 60-second Players rounds. Each needs a paired 95% lower
+  bound above zero against the best Intermediate style on the same seeds.
+  All three must pass. `confirmation.advancedPass` replaces
+  `heldOut.advancedPass` as the Advanced gate.
+- **One run:** `node scripts/rate_bots.cjs --held-out --confirm --write`,
+  once, after this commit. No profile, lineup or seed change after it. If it
+  fails, Advanced stays hidden.
+
 ## Strategist pre-registration — November 20, 2026
 
 The largest step-8 paired standard deviation comes from Analyst Edge.

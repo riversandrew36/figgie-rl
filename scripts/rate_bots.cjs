@@ -6,6 +6,9 @@ const { arena, loadBrowser } = require('./browser_harness.cjs');
 
 const revision = '485c75bdfe19a9252e22a89e466e4b92e79444f0';
 const advancedHeldOut = [930000, 931999];
+// Pre-registered confirmation range for the three-bot Advanced lineup.
+// Fresh seeds, opened once after the lineup below was committed.
+const confirmationSeeds = [940000, 945999];
 const names = ['Hunter', 'Banker', 'Detective', 'Bluffer'];
 const beginner = names.map((name, strategy) => ({
   name: `Rookie ${name}`, strategy, tier: 'beginner',
@@ -33,7 +36,7 @@ const analysts = [
 }));
 // Preserve the Beginner eligibility decision from its original study.
 // Frozen by the fresh validation rank before opening 930000–931999.
-const advanced = [
+const strategists = [
   ["Strategist Hold", 2, 7, 0.5],
   ["Strategist Press", 4, 7, 1],
   ["Strategist Read", 2, 4, 0.5],
@@ -43,6 +46,10 @@ const advanced = [
   profile: {edgeThreshold, quoteWidth, liveWeight, actionCap:60, quoteEvery:5,
     widening:0.5, endgame:0.85, useTrackedOdds:true},
 }));
+// Advanced lineup for the confirmation run: the three Strategists with the
+// highest 930000–931999 means. Read is dropped. Frozen before 940000–945999.
+const advanced = ['Strategist Hold', 'Strategist Press', 'Strategist Close']
+  .map((name) => strategists.find((bot) => bot.name === name));
 const lineups = {beginner: beginner.filter(bot => bot.strategy !== 1), intermediate, advanced};
 const means = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 function interval(values) {
@@ -83,7 +90,7 @@ function simulate(subjects, opponents, seeds, marketMode = 'players', measure = 
 }
 function assess(seeds, market = 'players', trained = null) {
   const reference = intermediate.slice(0, 3);
-  const candidates = [...intermediate, ...beginner, ...experts, ...analysts, ...advanced,
+  const candidates = [...intermediate, ...beginner, ...experts, ...analysts, ...strategists,
     {name:'Hold', isHuman:true}, {name:'Random', strategy:'random'}, ...(trained ? [trained] : [])];
   const values = simulate(candidates, reference, seeds, market);
   const best = intermediate.reduce((a, _, i) => means(values[i]) > means(values[a]) ? i : a, 0);
@@ -97,6 +104,20 @@ function assess(seeds, market = 'players', trained = null) {
   return { seeds, best: intermediate[best].name, rows,
     advancedPass: advanced.every(bot => rows[bot.name].vsBest[1] > 0),
   };
+}
+
+// The promotion decision: each lineup bot in seat 0 against Hunter, Banker and
+// Detective, paired against the best Intermediate style on the same seeds.
+function confirm(seeds) {
+  const candidates = [...intermediate, ...advanced, {name:'Hold', isHuman:true}];
+  const values = simulate(candidates, intermediate.slice(0, 3), seeds);
+  const best = intermediate.reduce((a, _, i) => means(values[i]) > means(values[a]) ? i : a, 0);
+  const hold = values[candidates.length - 1];
+  const paired = (a, b) => interval(a.map((value, i) => value - b[i]));
+  const rows = Object.fromEntries(candidates.map((bot, i) => [bot.name,
+    {profit:interval(values[i]), vsBest:paired(values[i],values[best]), vsHold:paired(values[i],hold)}]));
+  return { seeds, best: intermediate[best].name, lineup: advanced.map((bot) => bot.name), rows,
+    advancedPass: advanced.every(bot => rows[bot.name].vsBest[1] > 0) };
 }
 
 function qualifiesBeginner(block, bot) {
@@ -120,6 +141,9 @@ function main() {
   if (results.lineups.beginner.length < 3) throw Error("Fewer than three Rookie profiles qualified");
   addNovice(results.development, results.lineups.beginner);
   if (heldOutUsed) addNovice(results.heldOut, results.lineups.beginner);
+  if (process.argv.includes('--confirm') || process.argv.includes('--check')) {
+    results.confirmation = confirm(confirmationSeeds);
+  }
   if (process.argv.includes('--policy')) {
     const file = process.argv[process.argv.indexOf('--policy') + 1];
     const context = loadBrowser();
@@ -158,5 +182,5 @@ function main() {
   console.log(JSON.stringify(results,null,2));
 }
 const markerStart = '<script type="application/json" id="tierRatingsData">';
-module.exports = { simulate, interval, means, lineups, experts, analysts };
+module.exports = { simulate, interval, means, lineups, experts, analysts, strategists };
 if (require.main === module) main();
